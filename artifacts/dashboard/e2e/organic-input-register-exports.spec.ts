@@ -19,6 +19,7 @@ import {
 const TENANT_SLUG = "oakfield-farms";
 const FILTER_2025_PRODUCT_NAME = "E2E 2025 Restricted Input";
 const FILTER_2024_PRODUCT_NAME = "E2E 2024 Restricted Input";
+const SECOND_FARM = { id: 923_370, name: "Input Register Filter Test Farm" };
 
 type OrganicFarm = {
   tenantSlug: string;
@@ -108,18 +109,59 @@ async function prepareInputRegisterFilterPersistence(
   page: Page,
   farm: OrganicFarm,
 ): Promise<void> {
-  await page.route(`**/api/farms/${farm.farmId}/organic/inputs*`, async route => {
+  await page.route("**/api/tenants/current/farms", route =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        farms: [
+          { id: farm.farmId, name: farm.farmName },
+          SECOND_FARM,
+        ],
+      }),
+    }),
+  );
+
+  await page.route(`**/api/farms/${SECOND_FARM.id}`, async route => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (route.request().method() !== "GET" || pathname.endsWith("/dashboard")) {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ record: SECOND_FARM }),
+    });
+  });
+
+  await page.route(`**/api/farms/${SECOND_FARM.id}/dashboard`, route =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        farm: SECOND_FARM,
+        activeSubscriptions: [],
+      }),
+    }),
+  );
+
+  await page.route(/\/api\/farms\/(?:\d+)\/organic\/inputs(?:\?.*)?$/, async route => {
     if (route.request().method() !== "GET") {
       await route.continue();
       return;
     }
 
-    const cropYear = new URL(route.request().url()).searchParams.get("cropYear");
+    const requestUrl = new URL(route.request().url());
+    const cropYear = requestUrl.searchParams.get("cropYear");
+    const requestedFarmId = Number(
+      requestUrl.pathname.match(/\/api\/farms\/(\d+)\/organic\/inputs$/)?.[1],
+    );
     const record =
       cropYear === "2024"
         ? {
             id: 910_042,
-            farmId: farm.farmId,
+            farmId: requestedFarmId,
             productName: FILTER_2024_PRODUCT_NAME,
             inputType: "Fertiliser",
             supplier: "E2E Organic Supplies",
@@ -142,7 +184,7 @@ async function prepareInputRegisterFilterPersistence(
           }
         : {
             id: 910_043,
-            farmId: farm.farmId,
+            farmId: requestedFarmId,
             productName: FILTER_2025_PRODUCT_NAME,
             inputType: "Fertiliser",
             supplier: "E2E Organic Supplies",
@@ -182,7 +224,7 @@ async function prepareInputRegisterFilterPersistence(
     timeout: 15_000,
   });
   await page.evaluate(
-    (farmId) => {
+    ([farmId, secondFarmId]) => {
       localStorage.setItem(
         `organic-input-register-year-filter-${farmId}`,
         "2025",
@@ -191,8 +233,14 @@ async function prepareInputRegisterFilterPersistence(
         `organic-input-register-approval-status-filter-${farmId}`,
         "all",
       );
+      localStorage.removeItem(
+        `organic-input-register-year-filter-${secondFarmId}`,
+      );
+      localStorage.removeItem(
+        `organic-input-register-approval-status-filter-${secondFarmId}`,
+      );
     },
-    farm.farmId,
+    [farm.farmId, SECOND_FARM.id] as [number, number],
   );
 
   await page.goto("/dashboard/organic?tab=input-register", {
@@ -341,6 +389,44 @@ test("preserves approval status when switching crop year and includes both in th
   expect(download.suggestedFilename()).toMatch(
     /^input-register-2024-restricted-.+\.csv$/,
   );
+});
+
+test("restores Input Register filters after leaving and keeps them scoped to the farm", async ({
+  page,
+}) => {
+  const farm = await getOrganicFarm();
+  await prepareInputRegisterFilterPersistence(page, farm);
+
+  let selects = page.locator("select");
+  await expect(selects).toHaveCount(2);
+  await selects.nth(0).selectOption("2024");
+  await selects.nth(1).selectOption("restricted");
+  await expect(selects.nth(0)).toHaveValue("2024");
+  await expect(selects.nth(1)).toHaveValue("restricted");
+
+  await page.goto("/dashboard/dashboard", { waitUntil: "networkidle" });
+  await expect(page).not.toHaveURL(/\/organic/);
+  await page.goto("/dashboard/organic?tab=input-register", {
+    waitUntil: "networkidle",
+  });
+
+  selects = page.locator("select");
+  await expect(selects).toHaveCount(2);
+  await expect(selects.nth(0)).toHaveValue("2024");
+  await expect(selects.nth(1)).toHaveValue("restricted");
+
+  await page.getByRole("button", { name: /Switch Farm/ }).first().click();
+  await expect(page).toHaveURL(/\/dashboard\/select$/);
+  await page.getByText(SECOND_FARM.name, { exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard\/dashboard$/);
+  await page.goto("/dashboard/organic?tab=input-register", {
+    waitUntil: "networkidle",
+  });
+
+  selects = page.locator("select");
+  await expect(selects).toHaveCount(2);
+  await expect(selects.nth(0)).toHaveValue(String(new Date().getFullYear()));
+  await expect(selects.nth(1)).toHaveValue("all");
 });
 
 test("blocks an immediate audit pack click until empty-register warnings are ready", async ({
