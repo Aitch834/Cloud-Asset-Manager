@@ -41,6 +41,7 @@ import { ScoutingPhotoSection } from "@/components/ScoutingPhotoSection";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { vineScoutingHistoryHtml, type VineScoutingHistoryRow } from "@/lib/printTemplates";
+import { formatScoutingDueDate } from "@/lib/scoutingDueDate";
 
 function canonicaliseDate(raw: string): string | null {
   const s = raw.trim();
@@ -137,23 +138,6 @@ function scoutYear(date: string | null | undefined): number | null {
   const year = date?.trim().slice(0, 4);
   if (!year || !/^\d{4}$/.test(year)) return null;
   return Number(year);
-}
-
-function dateOnly(d: string | null | undefined): string | null {
-  const value = d?.trim().slice(0, 10);
-  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-}
-
-function isPastDate(d: string | null | undefined): boolean {
-  const date = dateOnly(d);
-  if (!date) return false;
-  const today = new Date();
-  const todayKey = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, "0"),
-    String(today.getDate()).padStart(2, "0"),
-  ].join("-");
-  return date < todayKey;
 }
 
 function pressureBadge(value: number | null): { label: string; color: string } | null {
@@ -555,7 +539,8 @@ export function ScoutingRow({
   const linked = !!item.blockId;
   const hasNotifiable = item.xylellaFastidiosa || item.phytophthoraViticola;
   const hasBoolPests = item.vineWeevilSighted || item.eutypaDiebackSighted;
-  const isOverdue = isPastDate(item.nextScoutDate);
+  const dueDate = formatScoutingDueDate(item.nextScoutDate, formatDate);
+  const isOverdue = dueDate.status === "overdue";
 
   const handlePress = () => {
     Haptics.selectionAsync();
@@ -638,11 +623,7 @@ export function ScoutingRow({
           color={isOverdue ? colors.error : colors.textSecondary}
         />
         <Text style={[styles.nextDueText, isOverdue && styles.nextDueTextOverdue]}>
-          {isOverdue
-            ? `Overdue · ${formatDate(item.nextScoutDate)}`
-            : item.nextScoutDate
-            ? `Next: ${formatDate(item.nextScoutDate)}`
-            : "Next: Not scheduled"}
+          {dueDate.label}
         </Text>
       </View>
 

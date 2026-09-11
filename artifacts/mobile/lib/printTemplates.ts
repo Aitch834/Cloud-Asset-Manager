@@ -15,6 +15,7 @@ import type {
   ThirdPartyGrainOutloadingMobile,
   VisitorLogEntry,
 } from "@/lib/types";
+import { formatScoutingDueDate } from "@/lib/scoutingDueDate";
 
 const PAGE_STYLE = `
   @page { size: A4; margin: 20mm 18mm; }
@@ -1297,18 +1298,10 @@ export function vineScoutingHistoryHtml(
   }
 
   function nextScoutingLabel(nextScoutDate: string | null): string {
-    if (!nextScoutDate) return "Next: Not scheduled";
-    const dateOnly = nextScoutDate.trim().slice(0, 10);
-    const today = new Date();
-    const todayKey = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, "0"),
-      String(today.getDate()).padStart(2, "0"),
-    ].join("-");
-    const label = fmtDate(nextScoutDate);
-    return /^\d{4}-\d{2}-\d{2}$/.test(dateOnly) && dateOnly < todayKey
-      ? `<strong style="color:#c0392b">Overdue &middot; ${label}</strong>`
-      : `Next: ${label}`;
+    const dueDate = formatScoutingDueDate(nextScoutDate, fmtDate);
+    return dueDate.status === "overdue"
+      ? `<strong style="color:#c0392b">${dueDate.label.replace(" · ", " &middot; ")}</strong>`
+      : dueDate.label;
   }
 
   const header = `
