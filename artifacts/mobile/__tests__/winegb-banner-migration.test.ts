@@ -549,6 +549,53 @@ describe("useUiPrefBatchMigrationGuard — conservative hide during async migrat
     expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(true);
   });
 
+  it("retries a durable write that fails after cleanup when the same screen remounts", async () => {
+    const uid = nextUid();
+    const farm = nextFarm();
+    const legacyKey = winegbLegacyKey(farm, YEAR);
+    const migratedPrefKey = winegbPrefKey("Fruit Set Survey", YEAR);
+    const cacheKey = `ui_prefs_cache_${uid}`;
+    asyncStore.set(
+      legacyKey,
+      makeLegacyWinegbValue(["Fruit Set Survey"]),
+    );
+
+    let rejectCacheWrite!: () => void;
+    const cacheWriteFailure = new Promise<void>((resolve) => {
+      rejectCacheWrite = resolve;
+    });
+    mockSetItem.mockImplementationOnce(async (key: string) => {
+      expect(key).toBe(cacheKey);
+      await cacheWriteFailure;
+      throw new Error("QuotaExceededError");
+    });
+
+    const firstMount = renderGuard({ userId: uid, farmId: farm });
+    const cleanup = firstMount.runEffect();
+    expect(typeof cleanup).toBe("function");
+    expect(firstMount.migrationChecked).toBe(false);
+    await drain(4);
+
+    (cleanup as () => void)();
+    const setterCallsAfterCleanup = mockStateSetterCalls.length;
+    rejectCacheWrite();
+    await drain();
+
+    expect(mockStateSetterCalls).toHaveLength(setterCallsAfterCleanup);
+    expect(asyncStore.has(legacyKey)).toBe(true);
+    expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(false);
+
+    const secondMount = renderGuard({ userId: uid, farmId: farm });
+    expect(secondMount.migrationChecked).toBe(false);
+    secondMount.runEffect();
+    await drain();
+
+    const cache = JSON.parse(asyncStore.get(cacheKey) ?? "{}") as PrefsMap;
+    expect(cache[migratedPrefKey]).toBe(true);
+    expect(asyncStore.has(legacyKey)).toBe(false);
+    expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(true);
+  });
+
   it("keeps a legacy Fruit Set dismissal hidden after migration completes", async () => {
     const uid  = nextUid();
     const farm = nextFarm();
