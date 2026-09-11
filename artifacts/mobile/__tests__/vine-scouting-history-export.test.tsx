@@ -544,3 +544,68 @@ describe("VineScoutingHistoryScreen — filtered empty states", () => {
     expect(screen.queryByText("No records for the selected block(s).")).toBeNull();
   });
 });
+
+describe("VineScoutingHistoryScreen — disease and pressure filter feedback", () => {
+  const filterRecords = [
+    {
+      ...makeRecord(21, "2026-06-01", "North Block"),
+      downyMildewPressure: 1,
+    },
+    {
+      ...makeRecord(22, "2026-06-02", "Middle Block"),
+      downyMildewPressure: 2,
+    },
+    {
+      ...makeRecord(23, "2026-06-03", "South Block"),
+      botrytisPressure: 3,
+    },
+    makeRecord(24, "2026-06-04", "Clear Block"),
+  ];
+
+  beforeEach(() => {
+    useApiFetch.mockReturnValue({
+      records: filterRecords,
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+      recordsFarmId: FARM_ID,
+    });
+    usePersistedPressureFilter.mockImplementation(() => {
+      const [pressure, setPressure] = React.useState("__all__");
+      return [pressure, setPressure];
+    });
+  });
+
+  it("reports disease and every pressure match count, then restores records from the empty state", () => {
+    const screen = render(<VineScoutingHistoryScreen />);
+    const search = screen.getByTestId("vine-scouting-search");
+
+    fireEvent.changeText(search, "downy");
+    expect(screen.getByText("2 records matched")).toBeTruthy();
+    expect(screen.getByText("Operator 21")).toBeTruthy();
+    expect(screen.getByText("Operator 22")).toBeTruthy();
+
+    fireEvent.changeText(search, "black rot");
+    expect(screen.getByText("0 records matched")).toBeTruthy();
+    expect(screen.getByText('No scouting records match "black rot"')).toBeTruthy();
+    expect(screen.getByTestId("vine-scouting-empty-clear-filters")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("vine-scouting-empty-clear-filters"));
+    expect(screen.queryByText("0 records matched")).toBeNull();
+    expect(screen.getByText("Operator 21")).toBeTruthy();
+    expect(screen.getByText("Operator 22")).toBeTruthy();
+    expect(screen.getByText("Operator 23")).toBeTruthy();
+    expect(screen.getByText("Operator 24")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("vine-scouting-pressure-filter-1"));
+    expect(screen.getByText("3 records matched")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("vine-scouting-pressure-filter-2"));
+    expect(screen.getByText("2 records matched")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("vine-scouting-pressure-filter-3"));
+    expect(screen.getByText("1 record matched")).toBeTruthy();
+    expect(screen.getByText("Operator 23")).toBeTruthy();
+  });
+});

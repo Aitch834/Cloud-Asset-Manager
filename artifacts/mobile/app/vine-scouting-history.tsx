@@ -978,6 +978,7 @@ export default function VineScoutingHistoryScreen() {
       <View style={styles.searchRow}>
         <Feather name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
         <TextInput
+          testID="vine-scouting-search"
           style={styles.searchInput}
           placeholder="Search by block, scout or date…"
           placeholderTextColor={colors.textSecondary}
@@ -1078,6 +1079,7 @@ export default function VineScoutingHistoryScreen() {
           return (
             <Pressable
               key={value}
+              testID={`vine-scouting-pressure-filter-${value}`}
               style={[
                 styles.pressureChip,
                 active && (chipColor ? { backgroundColor: chipColor + "22", borderColor: chipColor } : styles.pressureChipActive),
@@ -1231,7 +1233,12 @@ export default function VineScoutingHistoryScreen() {
                   <Text style={styles.emptyText}>
                     Try adjusting your search or clear the filters to see all records.
                   </Text>
-                  <Pressable onPress={clearFilters} style={styles.emptyClearButton} hitSlop={6}>
+                  <Pressable
+                    testID="vine-scouting-empty-clear-filters"
+                    onPress={clearFilters}
+                    style={styles.emptyClearButton}
+                    hitSlop={6}
+                  >
                     <Feather name="x" size={13} color={colors.primary} />
                     <Text style={styles.emptyClearText}>Clear filters</Text>
                   </Pressable>
