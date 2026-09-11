@@ -15,8 +15,8 @@
  *      empty strings in columns 8 and 9 for a transaction with no linked data.
  *   D. Linked Agri-Env project — both exports include the project's scheme name
  *      in column 9 for the uniquely-tagged linked transaction.
- *   E. Empty result — the legacy POST returns a valid header-only CSV for a
- *      date range with no matching transactions.
+ *   E. Empty result — both the legacy POST and newer GET return a valid
+ *      header-only CSV for a date range with no matching transactions.
  *
  * Rows are identified by a unique token embedded in the description field so
  * that demo-farm data already in the DB cannot cause false passes.
@@ -394,36 +394,45 @@ try {
   // ── Test E: empty result still returns a valid header-only CSV ────────────
   console.log("\n── Test E: no matching transactions — header-only CSV ────────────────");
 
-  const emptyPostResp = await legacyPostExport(EMPTY_RANGE_START, EMPTY_RANGE_END);
-  check(
-    "empty-range POST responds with HTTP 200",
-    emptyPostResp.status === 200,
-    `got HTTP ${emptyPostResp.status}`,
-  );
-  check(
-    "empty-range POST response is text/csv",
-    emptyPostResp.contentType.startsWith("text/csv"),
-    `got "${emptyPostResp.contentType}"`,
-  );
+  const [emptyPostResp, emptyGetResp] = await Promise.all([
+    legacyPostExport(EMPTY_RANGE_START, EMPTY_RANGE_END),
+    getExport(EMPTY_RANGE_START, EMPTY_RANGE_END),
+  ]);
 
-  const emptyLines = emptyPostResp.text.split("\n").filter((line) => line.trim().length > 0);
-  check(
-    "empty-range POST contains only the header row",
-    emptyLines.length === 1,
-    `found ${emptyLines.length} non-empty line(s)`,
-  );
+  for (const [exportLabel, response] of [
+    ["POST", emptyPostResp],
+    ["GET", emptyGetResp],
+  ]) {
+    check(
+      `empty-range ${exportLabel} responds with HTTP 200`,
+      response.status === 200,
+      `got HTTP ${response.status}`,
+    );
+    check(
+      `empty-range ${exportLabel} response is text/csv`,
+      response.contentType.startsWith("text/csv"),
+      `got "${response.contentType}"`,
+    );
 
-  const emptyHeaders = parseCsvRow(emptyLines[0] ?? "");
-  check(
-    `empty-range header has ${EXPECTED_COL_COUNT} columns`,
-    emptyHeaders.length === EXPECTED_COL_COUNT,
-    `got ${emptyHeaders.length}: ${JSON.stringify(emptyHeaders)}`,
-  );
-  check(
-    "empty-range header matches the expected export schema",
-    JSON.stringify(emptyHeaders) === JSON.stringify(EXPECTED_HEADERS),
-    `got ${JSON.stringify(emptyHeaders)}`,
-  );
+    const emptyLines = response.text.split("\n").filter((line) => line.trim().length > 0);
+    check(
+      `empty-range ${exportLabel} contains only the header row`,
+      emptyLines.length === 1,
+      `found ${emptyLines.length} non-empty line(s)`,
+    );
+
+    const emptyHeaders = parseCsvRow(emptyLines[0] ?? "");
+    check(
+      `empty-range ${exportLabel} header has ${EXPECTED_COL_COUNT} columns`,
+      emptyHeaders.length === EXPECTED_COL_COUNT,
+      `got ${emptyHeaders.length}: ${JSON.stringify(emptyHeaders)}`,
+    );
+    check(
+      `empty-range ${exportLabel} header matches the expected export schema`,
+      JSON.stringify(emptyHeaders) === JSON.stringify(EXPECTED_HEADERS),
+      `got ${JSON.stringify(emptyHeaders)}`,
+    );
+  }
 
 } finally {
   await cleanup();
