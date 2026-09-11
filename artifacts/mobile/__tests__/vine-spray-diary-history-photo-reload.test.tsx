@@ -76,7 +76,10 @@ jest.mock("@expo/vector-icons", () => {
   };
 });
 
-jest.mock("expo-file-system/legacy", () => ({}));
+jest.mock("expo-file-system/legacy", () => ({
+  cacheDirectory: "file:///cache/",
+  downloadAsync: jest.fn(),
+}));
 jest.mock("expo-haptics", () => ({
   impactAsync: jest.fn(),
   notificationAsync: jest.fn(),
@@ -84,8 +87,14 @@ jest.mock("expo-haptics", () => ({
   ImpactFeedbackStyle: { Medium: "medium" },
   NotificationFeedbackType: { Success: "success", Warning: "warning" },
 }));
-jest.mock("expo-media-library", () => ({}));
-jest.mock("expo-sharing", () => ({}));
+jest.mock("expo-media-library", () => ({
+  requestPermissionsAsync: jest.fn(),
+  saveToLibraryAsync: jest.fn(),
+}));
+jest.mock("expo-sharing", () => ({
+  isAvailableAsync: jest.fn(),
+  shareAsync: jest.fn(),
+}));
 jest.mock("react-native-gesture-handler", () => {
   const React = require("react");
   const ReactNative = require("react-native");
@@ -214,6 +223,17 @@ const { apiFetch } = require("../lib/apiFetch") as { apiFetch: jest.Mock };
 const { pickPhoto, uploadPhotoToStorage } = require("../lib/uploadPhoto") as {
   pickPhoto: jest.Mock;
   uploadPhotoToStorage: jest.Mock;
+};
+const FileSystem = require("expo-file-system/legacy") as {
+  downloadAsync: jest.Mock;
+};
+const MediaLibrary = require("expo-media-library") as {
+  requestPermissionsAsync: jest.Mock;
+  saveToLibraryAsync: jest.Mock;
+};
+const Sharing = require("expo-sharing") as {
+  isAvailableAsync: jest.Mock;
+  shareAsync: jest.Mock;
 };
 
 let persistedBlockIds: number[] = [];
@@ -529,6 +549,72 @@ describe("SprayPhotoLightbox cover badge", () => {
       gesture.onEnd({ translationX: 100 });
     });
     expect(screen.getByText("★")).toBeTruthy();
+  });
+});
+
+describe("SprayPhotoLightbox current photo actions", () => {
+  it("saves and shares the photo displayed after a swipe", async () => {
+    const secondPhoto = {
+      ...photo,
+      id: 102,
+      fileName: "photo-102.png",
+      downloadUrl: "https://cdn.example.com/photo-102.png",
+    };
+    MediaLibrary.requestPermissionsAsync.mockResolvedValue({ status: "granted" });
+    FileSystem.downloadAsync
+      .mockResolvedValueOnce({ uri: "file:///cache/saved-photo-102.png" })
+      .mockResolvedValueOnce({ uri: "file:///cache/shared-photo-102.png" });
+    MediaLibrary.saveToLibraryAsync.mockResolvedValue(undefined);
+    Sharing.isAvailableAsync.mockResolvedValue(true);
+    Sharing.shareAsync.mockResolvedValue(undefined);
+
+    const screen = render(
+      <SprayPhotoLightbox
+        photos={[photo, secondPhoto]}
+        initialIndex={0}
+        visible
+        onClose={jest.fn()}
+        farmId={3}
+        sprayDiaryId={7}
+        onCaptionSaved={jest.fn()}
+      />,
+    );
+    const gesture = screen.getByTestId("spray-lightbox-gesture").props.gesture as {
+      onBegin: () => void;
+      onUpdate: (event: { translationX: number; translationY: number }) => void;
+      onEnd: (event: { translationX: number }) => void;
+    };
+
+    act(() => {
+      gesture.onBegin();
+      gesture.onUpdate({ translationX: -100, translationY: 0 });
+      gesture.onEnd({ translationX: -100 });
+    });
+
+    fireEvent.press(screen.getByTestId("spray-photo-save-to-roll"));
+    await waitFor(() => {
+      expect(FileSystem.downloadAsync).toHaveBeenNthCalledWith(
+        1,
+        secondPhoto.downloadUrl,
+        "file:///cache/spray_photo_102.png",
+      );
+      expect(MediaLibrary.saveToLibraryAsync).toHaveBeenCalledWith(
+        "file:///cache/saved-photo-102.png",
+      );
+    });
+
+    fireEvent.press(screen.getByTestId("spray-photo-share"));
+    await waitFor(() => {
+      expect(FileSystem.downloadAsync).toHaveBeenNthCalledWith(
+        2,
+        secondPhoto.downloadUrl,
+        "file:///cache/spray_photo_share_102.png",
+      );
+      expect(Sharing.shareAsync).toHaveBeenCalledWith(
+        "file:///cache/shared-photo-102.png",
+        { mimeType: "image/png" },
+      );
+    });
   });
 });
 
