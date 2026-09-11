@@ -1825,25 +1825,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             : <ArrowDown className="w-3 h-3 ml-1 text-primary inline-block" />;
         };
 
-        const sortRows = (rows: typeof tables[0]["rows"], vintageIndex: number) => {
-          // Default (no explicit sort): alphabetical by block name
-          if (!chemSort) return [...rows].sort((a, b) => a.bname.localeCompare(b.bname));
-          const d = chemSort.dir === "asc" ? 1 : -1;
-          return [...rows].sort((a, b) => {
-            if (chemSort.col === "name") return a.bname.localeCompare(b.bname) * d;
-            let av: number | null, bv: number | null;
-            if (chemSort.col === "avg") {
-              av = a.rowAvg; bv = b.rowAvg;
-            } else {
-              av = a.vintageCells[vintageIndex]; bv = b.vintageCells[vintageIndex];
-            }
-            if (av == null && bv == null) return 0;
-            if (av == null) return 1;
-            if (bv == null) return -1;
-            return (av - bv) * d;
-          });
-        };
-
         return (
           <div className="rounded-lg border bg-card overflow-hidden">
             <div className="flex items-center border-b bg-muted/30">
@@ -1870,10 +1851,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             {chemCrossTabOpen && (
               <div className="p-4 space-y-4">
                 {tables.map(tbl => {
-                  const vintageIndex = chemSort && chemSort.col !== "avg"
-                    ? uniqueVintages.indexOf(chemSort.col)
-                    : -1;
-                  const sortedRows = sortRows(tbl.rows, vintageIndex);
+                  const sortedRows = sortChemistryCrossTabRows(tbl.rows, chemSort, uniqueVintages);
                   return (
                     <div key={tbl.label} className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{tbl.label}</p>
@@ -1916,24 +1894,24 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedRows.map((row, ri) => (
-                          <tr key={ri} className="border-b last:border-0 hover:bg-muted/20 group">
+                        {sortedRows.map(row => (
+                          <tr key={row.bname} className="border-b last:border-0 hover:bg-muted/20 group">
                             <td className="px-3 py-1.5 font-medium sticky left-0 z-10 bg-card group-hover:bg-muted/20 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">{row.bname}</td>
                             {row.vintageCells.map((val, vi) => {
                               const pickCount = row.vintageCounts[vi] ?? 0;
-                              const lowPick = val != null && pickCount === 1;
+                              const warning = getChemistryThinAveragePresentation(val, pickCount);
                               return (
-                                <td key={vi} className={`text-right px-3 py-1.5 tabular-nums ${lowPick ? "bg-amber-50 text-amber-900" : chemSort?.col === uniqueVintages[vi] ? "bg-muted/30" : ""}`}>
+                                <td key={vi} className={`text-right px-3 py-1.5 tabular-nums ${warning.cellClassName || (chemSort?.col === uniqueVintages[vi] ? "bg-muted/30" : "")}`}>
                                   {val != null ? (
                                     <span className="inline-flex items-center justify-end gap-0.5">
                                       {val.toFixed(tbl.precision)}
-                                      {lowPick && (
+                                      {warning.warned && (
                                         <span
                                           className="text-amber-500 font-bold leading-none"
-                                          title="Based on 1 pick — treat with caution"
-                                          aria-label="Based on 1 pick"
+                                          title={warning.title}
+                                          aria-label={warning.ariaLabel}
                                         >
-                                          *
+                                          {warning.mark}
                                         </span>
                                       )}
                                     </span>
