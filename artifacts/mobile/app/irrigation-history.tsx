@@ -3,7 +3,7 @@ import DateTimePicker, {
   DateTimePickerAndroid,
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -32,7 +32,11 @@ import {
   getSyncItemsForType,
   resetSyncItemToRetryById,
 } from "@/lib/database";
-import { scheduleSync, subscribe as subscribeSyncEngine } from "@/lib/sync-engine";
+import {
+  refreshPendingCount,
+  scheduleSync,
+  subscribe as subscribeSyncEngine,
+} from "@/lib/sync-engine";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -181,6 +185,7 @@ const IRRIGATION_METHODS = [
 
 export default function IrrigationHistoryScreen() {
   const insets = useSafeAreaInsets();
+  const { failedSyncId } = useLocalSearchParams<{ failedSyncId?: string }>();
   const { currentFarm } = useFarm();
   const farmId = currentFarm?.id;
 
@@ -231,6 +236,7 @@ export default function IrrigationHistoryScreen() {
     visible: boolean;
     item: LocalIrrigationItem | null;
   }>({ visible: false, item: null });
+  const openedFailedSyncIdRef = useRef<string | null>(null);
 
   // ── Load local items (failed + user-retried pending) ──────────────────────
 
@@ -275,10 +281,20 @@ export default function IrrigationHistoryScreen() {
         }));
 
       setLocalItems(items);
+      if (
+        failedSyncId &&
+        openedFailedSyncIdRef.current !== failedSyncId
+      ) {
+        const target = items.find((item) => item.syncId === failedSyncId);
+        if (target) {
+          openedFailedSyncIdRef.current = failedSyncId;
+          setErrorModal({ visible: true, item: target });
+        }
+      }
     } catch {
       if (reqId === localReqRef.current) setLocalItems([]);
     }
-  }, [farmId]);
+  }, [failedSyncId, farmId]);
 
   // ── Immediately clear local state on farm change ───────────────────────────
 
@@ -465,6 +481,7 @@ export default function IrrigationHistoryScreen() {
                 "bde_irrigation_applications",
                 item.recordId,
               );
+              await refreshPendingCount();
             } catch {
               setLocalItems((prev) =>
                 prev.some((localItem) => localItem.syncId === item.syncId)

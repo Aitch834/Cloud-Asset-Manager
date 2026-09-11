@@ -22,6 +22,15 @@ interface SyncQueueRow {
   created_at: string;
 }
 
+export interface FailedSyncItem {
+  id: string;
+  record_type: string;
+  record_id: string;
+  data_json: string;
+  last_error: string | null;
+  created_at: string;
+}
+
 let sqliteDb: SQLiteDB | null = null;
 let usingSQLite = false;
 
@@ -558,6 +567,32 @@ export async function getFailedSyncCount(): Promise<number> {
   if (!raw) return 0;
   const queue: SyncQueueRow[] = JSON.parse(raw);
   return queue.filter((i) => i.status === "failed").length;
+}
+
+export async function getFailedSyncItems(): Promise<FailedSyncItem[]> {
+  await ensureInit();
+  if (usingSQLite) {
+    return db().getAllAsync<FailedSyncItem>(
+      "SELECT id, record_type, record_id, data_json, last_error, created_at FROM sync_queue WHERE status = 'failed' ORDER BY record_type ASC, created_at DESC",
+    );
+  }
+  const raw = await AsyncStorage.getItem("bde_sync_queue");
+  if (!raw) return [];
+  const queue: SyncQueueRow[] = JSON.parse(raw);
+  return queue
+    .filter((item) => item.status === "failed")
+    .sort((a, b) => (
+      a.record_type.localeCompare(b.record_type) ||
+      b.created_at.localeCompare(a.created_at)
+    ))
+    .map((item) => ({
+      id: item.id,
+      record_type: item.record_type,
+      record_id: item.record_id,
+      data_json: item.data_json,
+      last_error: item.last_error ?? null,
+      created_at: item.created_at,
+    }));
 }
 
 export async function markSyncItemCompleted(id: string): Promise<void> {

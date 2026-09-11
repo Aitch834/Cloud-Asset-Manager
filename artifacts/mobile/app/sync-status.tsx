@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -16,6 +16,8 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useSync } from "@/lib/context/SyncContext";
+import { FailedSyncItem, getFailedSyncItems } from "@/lib/database";
+import { refreshPendingCount } from "@/lib/sync-engine";
 
 const RECORD_TYPES: { key: string; label: string; icon: string }[] = [
   { key: "spray_applications", label: "Spray Applications", icon: "droplet" },
@@ -27,6 +29,37 @@ const RECORD_TYPES: { key: string; label: string; icon: string }[] = [
   { key: "soil_tests", label: "Soil Tests", icon: "layers" },
   { key: "inspections", label: "Inspections", icon: "clipboard" },
 ];
+
+const FAILED_TYPE_DETAILS: Record<string, { label: string; icon: string }> = {
+  bde_irrigation_applications: { label: "Irrigation Applications", icon: "droplet" },
+  bde_vine_operation: { label: "Vine Operations", icon: "activity" },
+  bde_vine_harvest: { label: "Vine Harvests", icon: "archive" },
+  bde_organic_inputs: { label: "Organic Inputs", icon: "package" },
+};
+
+function readableRecordType(recordType: string): string {
+  const known = FAILED_TYPE_DETAILS[recordType];
+  if (known) return known.label;
+  return recordType
+    .replace(/^bde_/, "")
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Unknown Record";
+}
+
+function failedItemDescription(item: FailedSyncItem): string {
+  try {
+    const payload = JSON.parse(item.data_json) as Record<string, unknown>;
+    const date = payload.irrigationDate ?? payload.operationDate ?? payload.harvestDate ?? payload.date;
+    const place = payload.fieldOrBlockDescription ?? payload.fieldName ?? payload.blockName;
+    const details = [date, place].filter((value) => typeof value === "string" && value.trim());
+    if (details.length > 0) return details.join(" · ");
+  } catch {
+    // The queue identifiers below still give the grower a useful reference.
+  }
+  return `Record ${item.record_id}`;
+}
 
 export default function SyncStatusScreen() {
   const insets = useSafeAreaInsets();
@@ -42,11 +75,43 @@ export default function SyncStatusScreen() {
     triggerSync,
   } = useSync();
   const [refreshing, setRefreshing] = useState(false);
+  const [failedItems, setFailedItems] = useState<FailedSyncItem[]>([]);
+
+  const loadFailedItems = useCallback(async () => {
+    const items = await getFailedSyncItems();
+    setFailedItems(items);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void Promise.all([refreshPendingCount(), loadFailedItems()]);
+    }, [loadFailedItems]),
+  );
+
+  const failedGroups = useMemo(() => {
+    const groups = new Map<string, FailedSyncItem[]>();
+    for (const item of failedItems) {
+      const current = groups.get(item.record_type) ?? [];
+      current.push(item);
+      groups.set(item.record_type, current);
+    }
+    return Array.from(groups.entries());
+  }, [failedItems]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await triggerSync();
+    await loadFailedItems();
     setRefreshing(false);
+  };
+
+  const openFailedItem = (item: FailedSyncItem) => {
+    if (item.record_type === "bde_irrigation_applications") {
+      router.push({
+        pathname: "/irrigation-history",
+        params: { failedSyncId: item.id },
+      });
+    }
   };
 
   const fmtTime = (t: number | null) => {
@@ -205,7 +270,7 @@ export default function SyncStatusScreen() {
           </View>
         </View>
 
-        {/* Failed Count */}
+        {/* Failed items */}
         {failedCount > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Needs attention</Text>
@@ -220,9 +285,52 @@ export default function SyncStatusScreen() {
                 <Feather name="alert-triangle" size={28} color={colors.error} />
               </View>
               <Text style={styles.errorHelp}>
-                These records need attention before they can be uploaded. Open the relevant history screen to retry or correct them.
+                These records need attention before they can be uploaded.
               </Text>
             </View>
+            {failedGroups.map(([recordType, items]) => {
+              const details = FAILED_TYPE_DETAILS[recordType];
+              const supported = recordType === "bde_irrigation_applications";
+              return (
+                <View key={recordType} style={styles.failedGroup}>
+                  <View style={styles.failedGroupHeader}>
+                    <Feather
+                      name={(details?.icon ?? "file-text") as any}
+                      size={17}
+                      color={colors.error}
+                    />
+                    <Text style={styles.failedGroupTitle}>{readableRecordType(recordType)}</Text>
+                    <Text style={styles.failedGroupCount}>{items.length}</Text>
+                  </View>
+                  {items.map((item, index) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.failedItem, index > 0 && styles.failedItemDivider]}
+                      onPress={() => openFailedItem(item)}
+                      disabled={!supported}
+                      accessibilityRole={supported ? "button" : "text"}
+                      accessibilityLabel={`${readableRecordType(recordType)} failed upload. ${failedItemDescription(item)}. ${item.last_error ?? "Upload failed"}`}
+                      testID={`failed-sync-item-${item.id}`}
+                    >
+                      <View style={styles.failedItemText}>
+                        <Text style={styles.failedItemDescription}>
+                          {failedItemDescription(item)}
+                        </Text>
+                        <Text style={styles.failedItemError}>
+                          {item.last_error || "Upload failed. No further details are available."}
+                        </Text>
+                        {!supported && (
+                          <Text style={styles.failedItemHelp}>
+                            This record type does not yet have a correction link.
+                          </Text>
+                        )}
+                      </View>
+                      {supported && <Feather name="chevron-right" size={20} color={colors.primary} />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -341,6 +449,62 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     lineHeight: 20,
     paddingBottom: spacing.sm,
+  },
+  failedGroup: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.error + "44",
+    overflow: "hidden",
+  },
+  failedGroupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.errorBg,
+  },
+  failedGroupTitle: {
+    flex: 1,
+    color: colors.text,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+  },
+  failedGroupCount: {
+    color: colors.error,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+  },
+  failedItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  failedItemDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  failedItemText: { flex: 1 },
+  failedItemDescription: {
+    color: colors.text,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+  },
+  failedItemError: {
+    color: colors.error,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    marginTop: 3,
+  },
+  failedItemHelp: {
+    color: colors.textSecondary,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    marginTop: spacing.xs,
   },
   noticeHelp: {
     fontSize: fontSize.sm,
