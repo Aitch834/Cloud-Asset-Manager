@@ -34,12 +34,14 @@ import { test, expect } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import {
+  getActiveViticultureFarm,
+  type ActiveViticultureFarm,
+} from "./viticulture-farm-fixture";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
-const TENANT_SLUG = "oakfield-farms";
-const FARM_ID = 5; // Highfield Vineyard — viticulture module enabled
 
 /** Unique sentinel so rows can be found without relying on position */
 const RUN_TAG = `E2E-1277-${Date.now()}`;
@@ -65,39 +67,55 @@ function apiBase() {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
 }
 
-async function devFetch(url: string, init: RequestInit = {}) {
+async function devFetch(
+  farm: ActiveViticultureFarm,
+  url: string,
+  init: RequestInit = {},
+) {
   const res = await fetch(url, {
     ...init,
     headers: {
       ...(init.headers as Record<string, string>),
       "x-dev-bypass": DEV_BYPASS,
-      "x-tenant-slug": TENANT_SLUG,
+      "x-tenant-slug": farm.tenantSlug,
     },
   });
   if (!res.ok) throw new Error(`${init.method ?? "GET"} ${url} → ${res.status}: ${await res.text()}`);
   return res.json() as Promise<Record<string, unknown>>;
 }
 
-async function getFirstBlockId(): Promise<number> {
-  const data = await devFetch(`${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks`);
+async function getFirstBlockId(farm: ActiveViticultureFarm): Promise<number> {
+  const data = await devFetch(
+    farm,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-blocks`,
+  );
   const records = (data.records ?? data.data ?? []) as Array<Record<string, unknown>>;
   const active = records.filter((b) => b.isActive !== false);
-  if (!active.length) throw new Error(`Farm ${FARM_ID} has no active vineyard blocks`);
+  if (!active.length) throw new Error(`Farm ${farm.farmId} has no active vineyard blocks`);
   return active[0].id as number;
 }
 
-async function getFirstActiveBlock(): Promise<{ id: number; blockName: string }> {
-  const data = await devFetch(`${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks`);
+async function getFirstActiveBlock(
+  farm: ActiveViticultureFarm,
+): Promise<{ id: number; blockName: string }> {
+  const data = await devFetch(
+    farm,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-blocks`,
+  );
   const records = (data.records ?? data.data ?? []) as Array<Record<string, unknown>>;
   const active = records.filter((b) => b.isActive !== false);
-  if (!active.length) throw new Error(`Farm ${FARM_ID} has no active vineyard blocks`);
+  if (!active.length) throw new Error(`Farm ${farm.farmId} has no active vineyard blocks`);
   return { id: active[0].id as number, blockName: String(active[0].blockName ?? active[0].id) };
 }
 
-async function createLinkedScoutingRecord(blockId: number): Promise<number> {
+async function createLinkedScoutingRecord(
+  farm: ActiveViticultureFarm,
+  blockId: number,
+): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { record } = (await devFetch(
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-scouting`,
+    farm,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-scouting`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -117,10 +135,11 @@ async function createLinkedScoutingRecord(blockId: number): Promise<number> {
   return record.id;
 }
 
-async function createUnlinkedPhenologyRecord(): Promise<number> {
+async function createUnlinkedPhenologyRecord(farm: ActiveViticultureFarm): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { record } = (await devFetch(
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-phenology`,
+    farm,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-phenology`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -135,10 +154,14 @@ async function createUnlinkedPhenologyRecord(): Promise<number> {
   return record.id;
 }
 
-async function createLinkedPhenologyRecord(blockId: number): Promise<number> {
+async function createLinkedPhenologyRecord(
+  farm: ActiveViticultureFarm,
+  blockId: number,
+): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { record } = (await devFetch(
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-phenology`,
+    farm,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-phenology`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -154,10 +177,14 @@ async function createLinkedPhenologyRecord(blockId: number): Promise<number> {
   return record.id;
 }
 
-async function createLinkedSprayRecord(blockId: number): Promise<number> {
+async function createLinkedSprayRecord(
+  farm: ActiveViticultureFarm,
+  blockId: number,
+): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { record } = (await devFetch(
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-spray-diary`,
+    farm,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-spray-diary`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -172,10 +199,14 @@ async function createLinkedSprayRecord(blockId: number): Promise<number> {
   return record.id;
 }
 
-async function createLinkedOperationRecord(blockId: number): Promise<number> {
+async function createLinkedOperationRecord(
+  farm: ActiveViticultureFarm,
+  blockId: number,
+): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { record } = (await devFetch(
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-operations`,
+    farm,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-operations`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -190,8 +221,8 @@ async function createLinkedOperationRecord(blockId: number): Promise<number> {
   return record.id;
 }
 
-async function deleteRecord(url: string) {
-  await devFetch(url, { method: "DELETE" });
+async function deleteRecord(farm: ActiveViticultureFarm, url: string) {
+  await devFetch(farm, url, { method: "DELETE" });
 }
 
 // ─── Auth + navigation ────────────────────────────────────────────────────────
@@ -208,6 +239,7 @@ async function deleteRecord(url: string) {
  */
 async function signInAndOpenViticultureTab(
   page: import("@playwright/test").Page,
+  farm: ActiveViticultureFarm,
   tabId: string,
 ) {
   // 1. Load Clerk on the public page and sign in.
@@ -223,7 +255,7 @@ async function signInAndOpenViticultureTab(
       );
       localStorage.setItem(`viticulture-active-tab-${farmId}`, tab as string);
     },
-    [TENANT_SLUG, FARM_ID, tabId] as [string, number, string],
+    [farm.tenantSlug, farm.farmId, tabId] as [string, number, string],
   );
 
   // 3. Reload — Zustand re-reads seeded state; usePersistedTab opens tabId
@@ -241,13 +273,14 @@ async function signInAndOpenViticultureTab(
  */
 async function reloadOnViticultureTab(
   page: import("@playwright/test").Page,
+  farm: ActiveViticultureFarm,
   tabId: string,
 ) {
   await page.evaluate(
     ([farmId, tab]) => {
       localStorage.setItem(`viticulture-active-tab-${farmId}`, tab as string);
     },
-    [FARM_ID, tabId] as [number, string],
+    [farm.farmId, tabId] as [number, string],
   );
   await page.reload({ waitUntil: "networkidle" });
 }
@@ -323,16 +356,17 @@ test.describe("Overview chip count — unlink path", () => {
    * 7. Assert chip count = initial + 1 (proves cache update, not a reload).
    */
   test("scouting unlink increments Overview chip count immediately", async ({ page }) => {
-    const blockId = await getFirstBlockId();
-    const scoutingId = await createLinkedScoutingRecord(blockId);
+    const farm = await getActiveViticultureFarm();
+    const blockId = await getFirstBlockId(farm);
+    const scoutingId = await createLinkedScoutingRecord(farm, blockId);
 
     try {
       // Open Overview; read baseline
-      await signInAndOpenViticultureTab(page, "overview");
+      await signInAndOpenViticultureTab(page, farm, "overview");
       const initialCount = await readOverviewChipCount(page, /disease scouting/i);
 
       // Reload on Scouting tab so the API-injected row is fetched
-      await reloadOnViticultureTab(page, "scouting");
+      await reloadOnViticultureTab(page, farm, "scouting");
 
       const row = page.locator("tr", { hasText: RUN_TAG });
       await expect(row).toBeVisible({ timeout: 15_000 });
@@ -371,7 +405,8 @@ test.describe("Overview chip count — unlink path", () => {
       });
     } finally {
       await deleteRecord(
-        `${apiBase()}/api/farms/${FARM_ID}/vineyard-scouting/${scoutingId}`,
+        farm,
+        `${apiBase()}/api/farms/${farm.farmId}/vineyard-scouting/${scoutingId}`,
       ).catch(() => {});
     }
   });
@@ -380,16 +415,17 @@ test.describe("Overview chip count — unlink path", () => {
    * Scenario B: Spray Diary unlink — same flow for the Spray Diary tab.
    */
   test("spray diary unlink increments Overview chip count immediately", async ({ page }) => {
-    const blockId = await getFirstBlockId();
-    const sprayId = await createLinkedSprayRecord(blockId);
+    const farm = await getActiveViticultureFarm();
+    const blockId = await getFirstBlockId(farm);
+    const sprayId = await createLinkedSprayRecord(farm, blockId);
 
     try {
       // Open Overview; read baseline
-      await signInAndOpenViticultureTab(page, "overview");
+      await signInAndOpenViticultureTab(page, farm, "overview");
       const initialCount = await readOverviewChipCount(page, /spray diary/i);
 
       // Reload on Spray Diary tab so the API-injected row is fetched
-      await reloadOnViticultureTab(page, "spray-diary");
+      await reloadOnViticultureTab(page, farm, "spray-diary");
 
       const row = page.locator("tr", { hasText: RUN_TAG });
       await expect(row).toBeVisible({ timeout: 15_000 });
@@ -428,7 +464,8 @@ test.describe("Overview chip count — unlink path", () => {
       });
     } finally {
       await deleteRecord(
-        `${apiBase()}/api/farms/${FARM_ID}/vineyard-spray-diary/${sprayId}`,
+        farm,
+        `${apiBase()}/api/farms/${farm.farmId}/vineyard-spray-diary/${sprayId}`,
       ).catch(() => {});
     }
   });
@@ -441,12 +478,13 @@ test.describe("Overview chip count — phenology block assignment", () => {
    * only; no page navigation or manual refresh is allowed after the save.
    */
   test("phenology block assignment decrements the Overview chip immediately", async ({ page }) => {
-    const block = await getFirstActiveBlock();
-    const phenologyId = await createUnlinkedPhenologyRecord();
+    const farm = await getActiveViticultureFarm();
+    const block = await getFirstActiveBlock(farm);
+    const phenologyId = await createUnlinkedPhenologyRecord(farm);
 
     try {
       // The Overview query sees the API-seeded unlinked observation.
-      await signInAndOpenViticultureTab(page, "overview");
+      await signInAndOpenViticultureTab(page, farm, "overview");
       const initialCount = await readOverviewChipCount(page, /phenology/i);
       expect(initialCount, "seeded phenology observation must appear as unlinked").toBeGreaterThan(0);
 
@@ -490,7 +528,8 @@ test.describe("Overview chip count — phenology block assignment", () => {
       }
     } finally {
       await deleteRecord(
-        `${apiBase()}/api/farms/${FARM_ID}/vineyard-phenology/${phenologyId}`,
+        farm,
+        `${apiBase()}/api/farms/${farm.farmId}/vineyard-phenology/${phenologyId}`,
       ).catch(() => {});
     }
   });
@@ -503,11 +542,12 @@ test.describe("Overview chip count — additional unlink paths", () => {
    * unlinkMutation refetch without a full page reload.
    */
   test("phenology unlink increments Overview chip count immediately", async ({ page }) => {
-    const blockId = await getFirstBlockId();
-    const phenologyId = await createLinkedPhenologyRecord(blockId);
+    const farm = await getActiveViticultureFarm();
+    const blockId = await getFirstBlockId(farm);
+    const phenologyId = await createLinkedPhenologyRecord(farm, blockId);
 
     try {
-      await signInAndOpenViticultureTab(page, "overview");
+      await signInAndOpenViticultureTab(page, farm, "overview");
       const initialCount = await readOverviewChipCount(page, /phenology/i);
 
       await clickViticultureTab(page, "Phenology");
@@ -537,7 +577,8 @@ test.describe("Overview chip count — additional unlink paths", () => {
       ).toBeVisible();
     } finally {
       await deleteRecord(
-        `${apiBase()}/api/farms/${FARM_ID}/vineyard-phenology/${phenologyId}`,
+        farm,
+        `${apiBase()}/api/farms/${farm.farmId}/vineyard-phenology/${phenologyId}`,
       ).catch(() => {});
     }
   });
@@ -546,11 +587,12 @@ test.describe("Overview chip count — additional unlink paths", () => {
    * The same cache-refresh assertion for Pruning & Canopy Operations.
    */
   test("Pruning & Canopy unlink increments Overview chip count immediately", async ({ page }) => {
-    const blockId = await getFirstBlockId();
-    const operationId = await createLinkedOperationRecord(blockId);
+    const farm = await getActiveViticultureFarm();
+    const blockId = await getFirstBlockId(farm);
+    const operationId = await createLinkedOperationRecord(farm, blockId);
 
     try {
-      await signInAndOpenViticultureTab(page, "overview");
+      await signInAndOpenViticultureTab(page, farm, "overview");
       const initialCount = await readOverviewChipCount(page, /pruning & canopy/i);
 
       await clickViticultureTab(page, "Pruning & Canopy");
@@ -580,7 +622,8 @@ test.describe("Overview chip count — additional unlink paths", () => {
       ).toBeVisible();
     } finally {
       await deleteRecord(
-        `${apiBase()}/api/farms/${FARM_ID}/vineyard-operations/${operationId}`,
+        farm,
+        `${apiBase()}/api/farms/${farm.farmId}/vineyard-operations/${operationId}`,
       ).catch(() => {});
     }
   });

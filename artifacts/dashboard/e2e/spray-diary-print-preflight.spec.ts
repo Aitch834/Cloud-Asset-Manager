@@ -37,12 +37,14 @@ import { signInDashboard } from "./auth";
 import { test, expect } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
+import {
+  getActiveViticultureFarm,
+  type ActiveViticultureFarm,
+} from "./viticulture-farm-fixture";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
-const TENANT_SLUG = "oakfield-farms";
-const FARM_ID = 5; // Highfield Vineyard — has viticulture module
 
 /** Unique sentinel so we can locate our injected rows without relying on position */
 const PRODUCT_TAG = `E2EPrint-1274-${Date.now()}`;
@@ -61,13 +63,13 @@ function apiBase() {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
 }
 
-async function apiPost(url: string, body: unknown) {
+async function apiPost(farm: ActiveViticultureFarm, url: string, body: unknown) {
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-dev-bypass": DEV_BYPASS,
-      "x-tenant-slug": TENANT_SLUG,
+      "x-tenant-slug": farm.tenantSlug,
     },
     body: JSON.stringify(body),
   });
@@ -76,22 +78,26 @@ async function apiPost(url: string, body: unknown) {
   return res.json() as Promise<Record<string, unknown>>;
 }
 
-async function apiDelete(url: string) {
+async function apiDelete(farm: ActiveViticultureFarm, url: string) {
   const res = await fetch(url, {
     method: "DELETE",
     headers: {
       "x-dev-bypass": DEV_BYPASS,
-      "x-tenant-slug": TENANT_SLUG,
+      "x-tenant-slug": farm.tenantSlug,
     },
   });
   if (!res.ok) throw new Error(`DELETE ${url} → ${res.status}`);
 }
 
 /** Create a spray diary record.  Pass blockId: null for an unlinked record. */
-async function createSprayRecord(blockId: number | null): Promise<number> {
+async function createSprayRecord(
+  farm: ActiveViticultureFarm,
+  blockId: number | null,
+): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { record } = (await apiPost(
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-spray-diary`,
+    farm,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-spray-diary`,
     {
       applicationDate: today,
       productName: PRODUCT_TAG,
@@ -101,19 +107,22 @@ async function createSprayRecord(blockId: number | null): Promise<number> {
   return record.id;
 }
 
-async function deleteSprayRecord(id: number) {
+async function deleteSprayRecord(farm: ActiveViticultureFarm, id: number) {
   await apiDelete(
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-spray-diary/${id}`,
+    farm,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-spray-diary/${id}`,
   );
 }
 
-async function getFirstVineyardBlock(): Promise<{ id: number; blockName: string }> {
+async function getFirstVineyardBlock(
+  farm: ActiveViticultureFarm,
+): Promise<{ id: number; blockName: string }> {
   const res = await fetch(
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks`,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-blocks`,
     {
       headers: {
         "x-dev-bypass": DEV_BYPASS,
-        "x-tenant-slug": TENANT_SLUG,
+        "x-tenant-slug": farm.tenantSlug,
       },
     },
   );
@@ -124,18 +133,21 @@ async function getFirstVineyardBlock(): Promise<{ id: number; blockName: string 
   };
   const firstBlock = body.blocks?.[0];
   if (!firstBlock)
-    throw new Error("No vineyard blocks found on farm 5 — test cannot run");
+    throw new Error(`No vineyard blocks found on farm ${farm.farmId} — test cannot run`);
   return firstBlock;
 }
 
 // ─── Navigation helper ────────────────────────────────────────────────────────
 
-async function navigateToSprayDiaryTab(page: import("@playwright/test").Page) {
+async function navigateToSprayDiaryTab(
+  page: import("@playwright/test").Page,
+  farm: ActiveViticultureFarm,
+) {
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
 
   // Seed localStorage so the fetch interceptor attaches x-tenant-slug on all
-  // API calls and the Zustand store pre-selects Highfield Vineyard (farm 5).
+  // API calls and the Zustand store pre-selects the discovered vineyard.
   await page.evaluate(
     ([slug, farmId]) => {
       localStorage.setItem("farmtrac_tenantSlug", slug);
@@ -144,7 +156,7 @@ async function navigateToSprayDiaryTab(page: import("@playwright/test").Page) {
         JSON.stringify({ state: { tenantSlug: slug, farmId }, version: 0 }),
       );
     },
-    [TENANT_SLUG, FARM_ID] as [string, number],
+    [farm.tenantSlug, farm.farmId] as [string, number],
   );
 
   // Hard-reload so the patched window.fetch and Zustand hydration pick up the
@@ -187,12 +199,13 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
     page,
   }) => {
     await signInDashboard(page);
+    const farm = await getActiveViticultureFarm();
 
     // Inject an unlinked spray record (blockId: null)
-    const sprayId = await createSprayRecord(null);
+    const sprayId = await createSprayRecord(farm, null);
 
     try {
-      await navigateToSprayDiaryTab(page);
+      await navigateToSprayDiaryTab(page, farm);
 
       const row = page.locator("tr", { hasText: PRODUCT_TAG });
       await expect(row).toBeVisible({ timeout: 15_000 });
@@ -265,7 +278,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       await page.keyboard.press("Escape");
       await expect(dialog).not.toBeVisible();
     } finally {
-      await deleteSprayRecord(sprayId);
+      await deleteSprayRecord(farm, sprayId);
     }
   });
 
@@ -277,11 +290,12 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
     page,
   }) => {
     await signInDashboard(page);
+    const farm = await getActiveViticultureFarm();
 
-    const sprayId = await createSprayRecord(null);
+    const sprayId = await createSprayRecord(farm, null);
 
     try {
-      await navigateToSprayDiaryTab(page);
+      await navigateToSprayDiaryTab(page, farm);
 
       const row = page.locator("tr", { hasText: PRODUCT_TAG });
       await expect(row).toBeVisible({ timeout: 15_000 });
@@ -311,7 +325,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       await page.keyboard.press("Escape");
       await expect(bulkDialog).not.toBeVisible();
     } finally {
-      await deleteSprayRecord(sprayId);
+      await deleteSprayRecord(farm, sprayId);
     }
   });
 
@@ -323,28 +337,13 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
     page,
   }) => {
     await signInDashboard(page);
+    const farm = await getActiveViticultureFarm();
 
-    const blocksRes = await fetch(
-      `${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks`,
-      {
-        headers: {
-          "x-dev-bypass": DEV_BYPASS,
-          "x-tenant-slug": TENANT_SLUG,
-        },
-      },
-    );
-    if (!blocksRes.ok)
-      throw new Error(`GET vineyard-blocks → ${blocksRes.status}`);
-    const blocksBody = (await blocksRes.json()) as {
-      blocks: { id: number; blockName: string }[];
-    };
-    const firstBlock = blocksBody.blocks?.[0];
-    if (!firstBlock)
-      throw new Error("No vineyard blocks found on farm 5 — test cannot run");
-    const sprayId = await createSprayRecord(null);
+    const firstBlock = await getFirstVineyardBlock(farm);
+    const sprayId = await createSprayRecord(farm, null);
 
     try {
-      await navigateToSprayDiaryTab(page);
+      await navigateToSprayDiaryTab(page, farm);
 
       const row = page.locator("tr", { hasText: PRODUCT_TAG });
       await expect(row).toBeVisible({ timeout: 15_000 });
@@ -377,7 +376,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       // dialog, so growers can see the error and retry.
       let intercepted = false;
       await page.route(
-        `**/api/farms/${FARM_ID}/vineyard-spray-diary/${sprayId}`,
+        `**/api/farms/${farm.farmId}/vineyard-spray-diary/${sprayId}`,
         async route => {
           intercepted = true;
           await route.fulfill({
@@ -407,9 +406,9 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       ).toBeVisible();
     } finally {
       await page.unroute(
-        `**/api/farms/${FARM_ID}/vineyard-spray-diary/${sprayId}`,
+        `**/api/farms/${farm.farmId}/vineyard-spray-diary/${sprayId}`,
       );
-      await deleteSprayRecord(sprayId);
+      await deleteSprayRecord(farm, sprayId);
     }
   });
 
@@ -421,11 +420,12 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
     page,
   }) => {
     await signInDashboard(page);
+    const farm = await getActiveViticultureFarm();
 
-    const sprayId = await createSprayRecord(null);
+    const sprayId = await createSprayRecord(farm, null);
 
     try {
-      await navigateToSprayDiaryTab(page);
+      await navigateToSprayDiaryTab(page, farm);
 
       const row = page.locator("tr", { hasText: PRODUCT_TAG });
       await expect(row).toBeVisible({ timeout: 15_000 });
@@ -455,7 +455,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       expect(popup).toBeTruthy();
       await popup.close();
     } finally {
-      await deleteSprayRecord(sprayId);
+      await deleteSprayRecord(farm, sprayId);
     }
   });
 
@@ -472,32 +472,17 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
     page,
   }) => {
     await signInDashboard(page);
+    const farm = await getActiveViticultureFarm();
 
     // We need to know a block ID that exists on this farm.  Fetch one via the
     // API before injecting the linked spray record.
-    const blocksRes = await fetch(
-      `${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks`,
-      {
-        headers: {
-          "x-dev-bypass": DEV_BYPASS,
-          "x-tenant-slug": TENANT_SLUG,
-        },
-      },
-    );
-    if (!blocksRes.ok)
-      throw new Error(`GET vineyard-blocks → ${blocksRes.status}`);
-    const blocksBody = (await blocksRes.json()) as {
-      blocks: { id: number; blockName: string }[];
-    };
-    const firstBlock = blocksBody.blocks?.[0];
-    if (!firstBlock)
-      throw new Error("No vineyard blocks found on farm 5 — test cannot run");
+    const firstBlock = await getFirstVineyardBlock(farm);
 
-    const linkedId = await createSprayRecord(firstBlock.id);
-    const unlinkedId = await createSprayRecord(null);
+    const linkedId = await createSprayRecord(farm, firstBlock.id);
+    const unlinkedId = await createSprayRecord(farm, null);
 
     try {
-      await navigateToSprayDiaryTab(page);
+      await navigateToSprayDiaryTab(page, farm);
 
       const linkedRow = page.locator("tr", { hasText: PRODUCT_TAG });
       await expect(linkedRow.first()).toBeVisible({ timeout: 15_000 });
@@ -542,8 +527,8 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       expect(popup).toBeTruthy();
       await popup.close();
     } finally {
-      await deleteSprayRecord(linkedId);
-      await deleteSprayRecord(unlinkedId);
+      await deleteSprayRecord(farm, linkedId);
+      await deleteSprayRecord(farm, unlinkedId);
     }
   });
 });

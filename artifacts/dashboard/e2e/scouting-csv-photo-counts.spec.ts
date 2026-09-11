@@ -20,10 +20,12 @@ import { test, expect, type Page } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import {
+  getActiveViticultureFarm,
+  type ActiveViticultureFarm,
+} from "./viticulture-farm-fixture";
 
 const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
-const TENANT_SLUG = "oakfield-farms";
-const FARM_ID = 5; // Highfield Vineyard — has viticulture module
 const SCOUT_NAME = `E2EScoutCsv-${Date.now()}`;
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
@@ -39,12 +41,8 @@ function apiBase(): string {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
 }
 
-const bypassHeaders = {
-  "x-dev-bypass": DEV_BYPASS,
-  "x-tenant-slug": TENANT_SLUG,
-};
-
 async function apiRequest(
+  farm: ActiveViticultureFarm,
   method: "POST" | "PATCH" | "DELETE",
   url: string,
   body?: unknown,
@@ -52,7 +50,8 @@ async function apiRequest(
   const response = await fetch(url, {
     method,
     headers: {
-      ...bypassHeaders,
+      "x-dev-bypass": DEV_BYPASS,
+      "x-tenant-slug": farm.tenantSlug,
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -64,11 +63,12 @@ async function apiRequest(
   return response.json() as Promise<Record<string, unknown>>;
 }
 
-async function createScoutingRecord(): Promise<number> {
+async function createScoutingRecord(farm: ActiveViticultureFarm): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const response = await apiRequest(
+    farm,
     "POST",
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-scouting`,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-scouting`,
     {
       scoutDate: today,
       scoutedBy: SCOUT_NAME,
@@ -85,10 +85,11 @@ async function createScoutingRecord(): Promise<number> {
   return record.id;
 }
 
-async function attachPhoto(scoutingId: number): Promise<number> {
+async function attachPhoto(farm: ActiveViticultureFarm, scoutingId: number): Promise<number> {
   const response = await apiRequest(
+    farm,
     "POST",
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-scouting/${scoutingId}/photos`,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-scouting/${scoutingId}/photos`,
     {
       objectPath: `/objects/e2e-scouting-csv-${Date.now()}.jpg`,
       fileName: "e2e-scouting-csv.jpg",
@@ -99,14 +100,15 @@ async function attachPhoto(scoutingId: number): Promise<number> {
   return photo.id;
 }
 
-async function deleteScoutingRecord(scoutingId: number) {
+async function deleteScoutingRecord(farm: ActiveViticultureFarm, scoutingId: number) {
   await apiRequest(
+    farm,
     "DELETE",
-    `${apiBase()}/api/farms/${FARM_ID}/vineyard-scouting/${scoutingId}`,
+    `${apiBase()}/api/farms/${farm.farmId}/vineyard-scouting/${scoutingId}`,
   );
 }
 
-async function navigateToScoutingTab(page: Page) {
+async function navigateToScoutingTab(page: Page, farm: ActiveViticultureFarm) {
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
 
@@ -116,7 +118,7 @@ async function navigateToScoutingTab(page: Page) {
       "farmtrac-storage",
       JSON.stringify({ state: { tenantSlug: slug, farmId }, version: 0 }),
     );
-  }, [TENANT_SLUG, FARM_ID] as [string, number]);
+  }, [farm.tenantSlug, farm.farmId] as [string, number]);
 
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("link", { name: /viticulture/i }).click();
@@ -206,8 +208,9 @@ async function downloadScoutingCounts(page: Page) {
 test.describe("Disease Scouting CSV photo and caption counts", () => {
   test("refreshes photoCount and captionCount after add, caption, and delete", async ({ page }) => {
     await signInDashboard(page);
+    const farm = await getActiveViticultureFarm();
 
-    const scoutingId = await createScoutingRecord();
+    const scoutingId = await createScoutingRecord(farm);
     const consoleErrors: string[] = [];
     const failedScoutingRequests: string[] = [];
     page.on("console", message => {
@@ -216,15 +219,15 @@ test.describe("Disease Scouting CSV photo and caption counts", () => {
     page.on("response", response => {
       if (
         response.status() >= 400
-        && response.url().includes(`/api/farms/${FARM_ID}/vineyard-scouting`)
+        && response.url().includes(`/api/farms/${farm.farmId}/vineyard-scouting`)
       ) {
         failedScoutingRequests.push(`${response.status()} ${response.request().method()} ${response.url()}`);
       }
     });
 
     try {
-      await attachPhoto(scoutingId);
-      await navigateToScoutingTab(page);
+      await attachPhoto(farm, scoutingId);
+      await navigateToScoutingTab(page, farm);
 
       const row = page.locator("tr", { hasText: SCOUT_NAME });
       await expect(row).toBeVisible({ timeout: 15_000 });
@@ -281,7 +284,7 @@ test.describe("Disease Scouting CSV photo and caption counts", () => {
       expect(consoleErrors, "Scouting caption flow must not log browser console errors").toEqual([]);
       expect(failedScoutingRequests, "Scouting caption flow API requests must succeed").toEqual([]);
     } finally {
-      await deleteScoutingRecord(scoutingId);
+      await deleteScoutingRecord(farm, scoutingId);
     }
   });
 });

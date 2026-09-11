@@ -8,18 +8,14 @@ import { signInDashboard } from "./auth";
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-
-const TENANT_SLUG = "oakfield-farms";
+import {
+  getActiveViticultureFarm,
+  type ActiveViticultureFarm,
+} from "./viticulture-farm-fixture";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-type ViticultureFarm = {
-  tenantSlug: string;
-  farmId: number;
-};
 
 function readSetupFile(name: string): string {
   const stateFile = path.join(__dirname, name);
@@ -29,47 +25,9 @@ function readSetupFile(name: string): string {
   return fs.readFileSync(stateFile, "utf8").trim();
 }
 
-async function getViticultureFarm(): Promise<ViticultureFarm> {
-  const db = new Client({ connectionString: process.env.DATABASE_URL });
-  await db.connect();
-
-  try {
-    const result = await db.query<{ tenant_slug: string; farm_id: number }>(
-      `SELECT t.slug AS tenant_slug, f.id AS farm_id
-       FROM tenants t
-       JOIN farms f ON f.tenant_id = t.id
-       JOIN subscriptions s ON s.farm_id = f.id AND s.tenant_id = t.id
-       JOIN modules m ON m.id = s.module_id
-       WHERE t.slug = $1
-         AND (
-           s.status = 'active'
-           OR (
-             s.status = 'trial'
-             AND (s.current_period_end IS NULL OR s.current_period_end > NOW())
-           )
-         )
-         AND m.key IN ('viticulture', 'organic-viticulture')
-         AND f.sector_viticulture = true
-       ORDER BY f.id
-       LIMIT 1`,
-      [TENANT_SLUG],
-    );
-
-    const farm = result.rows[0];
-    if (!farm) {
-      throw new Error(
-        `Farm Address warning setup failed: no active Viticulture farm is available for tenant ${TENANT_SLUG}.`,
-      );
-    }
-    return { tenantSlug: farm.tenant_slug, farmId: farm.farm_id };
-  } finally {
-    await db.end();
-  }
-}
-
 async function prepareDashboard(
   page: Page,
-  farm: ViticultureFarm,
+  farm: ActiveViticultureFarm,
   farmAddress: { value: string },
 ): Promise<void> {
   await page.route(`**/api/farms/${farm.farmId}`, async route => {
@@ -155,7 +113,7 @@ async function expectWarningTargetsAddress(page: Page): Promise<void> {
 test("Operations and Harvest show the Farm Address warning only when address is blank", async ({
   page,
 }) => {
-  const farm = await getViticultureFarm();
+  const farm = await getActiveViticultureFarm();
   const farmAddress = { value: "" };
   await prepareDashboard(page, farm, farmAddress);
 

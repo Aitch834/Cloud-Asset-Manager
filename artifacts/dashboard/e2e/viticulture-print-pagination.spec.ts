@@ -10,19 +10,15 @@ import { signInDashboard } from "./auth";
  */
 
 import { test, expect, type Page } from "@playwright/test";
-import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { TENANT_SLUG, VITICULTURE_FARM_ID } from "./global-setup";
+import {
+  getActiveViticultureFarm,
+  type ActiveViticultureFarm,
+} from "./viticulture-farm-fixture";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-type ViticultureFarm = {
-  tenantSlug: string;
-  farmId: number;
-  farmName: string;
-};
 
 type PrintPopup = Page;
 
@@ -34,72 +30,13 @@ function getTestUserId(): string {
   return fs.readFileSync(stateFile, "utf8").trim();
 }
 
-/**
- * Select a farm that can actually render the RPA print entry point. The
- * explicit error is intentional: a missing viticulture fixture must fail the
- * release check, not turn it into a false green test with no buttons.
- */
-async function getViticultureFarm(): Promise<ViticultureFarm> {
-  const db = new Client({ connectionString: process.env.DATABASE_URL });
-  await db.connect();
-
-  try {
-    const result = await db.query<{
-      tenant_slug: string;
-      farm_id: number;
-      farm_name: string;
-    }>(
-      `SELECT t.slug AS tenant_slug, f.id AS farm_id, f.name AS farm_name
-       FROM tenants t
-       JOIN farms f ON f.tenant_id = t.id
-       JOIN subscriptions s ON s.farm_id = f.id AND s.tenant_id = t.id
-       JOIN modules m ON m.id = s.module_id
-       WHERE t.slug = $1
-          AND f.id = $2
-         AND (
-           s.status = 'active'
-           OR (
-             s.status = 'trial'
-             AND (s.current_period_end IS NULL OR s.current_period_end > NOW())
-           )
-         )
-         AND m.key IN ('viticulture', 'organic-viticulture')
-         AND f.sector_viticulture = true
-          AND NULLIF(BTRIM(f.sbi_number), '') IS NOT NULL
-         AND EXISTS (
-           SELECT 1
-           FROM vineyard_blocks vb
-           WHERE vb.farm_id = f.id
-         )
-       LIMIT 1`,
-       [TENANT_SLUG, VITICULTURE_FARM_ID],
-    );
-
-    const farm = result.rows[0];
-    if (!farm) {
-      throw new Error(
-        `Print pagination setup failed: stable farm ${VITICULTURE_FARM_ID} for tenant ${TENANT_SLUG} ` +
-          "must have an active Viticulture subscription, the Viticulture sector enabled, an SBI number, and a vineyard block.",
-      );
-    }
-
-    return {
-      tenantSlug: farm.tenant_slug,
-      farmId: farm.farm_id,
-      farmName: farm.farm_name,
-    };
-  } finally {
-    await db.end();
-  }
-}
-
 function reportApiUrl(farmId: number, report: string): string {
   return `**/api/farms/${farmId}/${report}`;
 }
 
 async function prepareDashboard(
   page: Page,
-  farm: ViticultureFarm,
+  farm: ActiveViticultureFarm,
 ): Promise<void> {
   await signInDashboard(page);
 
@@ -275,7 +212,7 @@ async function expectPaginationGuards(
 }
 
 test("all viticulture print reports preserve pagination guards", async ({ page }) => {
-  const farm = await getViticultureFarm();
+  const farm = await getActiveViticultureFarm();
   await prepareDashboard(page, farm);
 
   // ── RPA Reference ───────────────────────────────────────────────────────

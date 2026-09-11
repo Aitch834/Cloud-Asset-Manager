@@ -8,57 +8,15 @@ import { signInDashboard } from "./auth";
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { Client } from "pg";
-
-const TENANT_SLUG = "oakfield-farms";
-
-type ViticultureFarm = {
-  tenantSlug: string;
-  farmId: number;
-};
+import {
+  getActiveViticultureFarm,
+  type ActiveViticultureFarm,
+} from "./viticulture-farm-fixture";
 
 const WITH_PHOTOS_SCOUT = "E2E Print Has Photos";
 const WITHOUT_PHOTOS_SCOUT = "E2E Print No Photos";
 
-async function getViticultureFarm(): Promise<ViticultureFarm> {
-  const db = new Client({ connectionString: process.env.DATABASE_URL });
-  await db.connect();
-
-  try {
-    const result = await db.query<{ tenant_slug: string; farm_id: number }>(
-      `SELECT t.slug AS tenant_slug, f.id AS farm_id
-       FROM tenants t
-       JOIN farms f ON f.tenant_id = t.id
-       JOIN subscriptions s ON s.farm_id = f.id AND s.tenant_id = t.id
-       JOIN modules m ON m.id = s.module_id
-       WHERE t.slug = $1
-         AND (
-           s.status = 'active'
-           OR (
-             s.status = 'trial'
-             AND (s.current_period_end IS NULL OR s.current_period_end > NOW())
-           )
-         )
-         AND m.key IN ('viticulture', 'organic-viticulture')
-         AND f.sector_viticulture = true
-       ORDER BY f.id
-       LIMIT 1`,
-      [TENANT_SLUG],
-    );
-
-    const farm = result.rows[0];
-    if (!farm) {
-      throw new Error(
-        `Scouting print setup failed: no viticulture-enabled farm is available for tenant ${TENANT_SLUG}.`,
-      );
-    }
-    return { tenantSlug: farm.tenant_slug, farmId: farm.farm_id };
-  } finally {
-    await db.end();
-  }
-}
-
-async function prepareScouting(page: Page, farm: ViticultureFarm): Promise<void> {
+async function prepareScouting(page: Page, farm: ActiveViticultureFarm): Promise<void> {
   await page.route(`**/api/farms/${farm.farmId}/vineyard-blocks`, async route => {
     if (route.request().method() !== "GET") {
       await route.continue();
@@ -156,7 +114,7 @@ async function selectPhotoFilter(page: Page, option: "Has photos" | "No photos")
 test("scouting print uses Has photos rows and explains the No photos filter before printing", async ({
   page,
 }) => {
-  const farm = await getViticultureFarm();
+  const farm = await getActiveViticultureFarm();
   await prepareScouting(page, farm);
 
   await selectPhotoFilter(page, "Has photos");
