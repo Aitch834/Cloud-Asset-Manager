@@ -93,10 +93,11 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+            <label htmlFor="farm-edit-name" className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
               Farm Name
             </label>
             <input
+              id="farm-edit-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
@@ -105,10 +106,11 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+            <label htmlFor="farm-edit-address" className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
               Address
             </label>
             <textarea
+              id="farm-edit-address"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               rows={2}
@@ -118,10 +120,11 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+            <label htmlFor="farm-edit-postcode" className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
               Postcode
             </label>
             <input
+              id="farm-edit-postcode"
               value={postcode}
               onChange={(e) => setPostcode(e.target.value)}
               onBlur={() => {
@@ -141,10 +144,11 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              <label htmlFor="farm-edit-cph-number" className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
                 CPH Number
               </label>
               <input
+                id="farm-edit-cph-number"
                 value={cphNumber}
                 onChange={(e) => setCphNumber(e.target.value)}
                 className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
@@ -152,10 +156,11 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              <label htmlFor="farm-edit-sbi-number" className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
                 SBI Number
               </label>
               <input
+                id="farm-edit-sbi-number"
                 value={sbiNumber}
                 onChange={(e) => setSbiNumber(e.target.value)}
                 className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
@@ -165,10 +170,11 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+            <label htmlFor="farm-edit-emergency-contact-phone" className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
               Emergency Contact Phone
             </label>
             <input
+              id="farm-edit-emergency-contact-phone"
               type="tel"
               value={emergencyContactPhone}
               onChange={(e) => setEmergencyContactPhone(e.target.value)}
