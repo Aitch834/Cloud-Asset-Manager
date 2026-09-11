@@ -7,7 +7,9 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "check:print-ad-offline-assets": "node scripts/check-print-ad-offline-assets.mjs",
+    "test:print-ad-offline-assets": "node --test scripts/check-print-ad-offline-assets.test.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm run check:print-ad-offline-assets"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
