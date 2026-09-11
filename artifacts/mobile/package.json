@@ -13,6 +13,7 @@
     "check:effect-api-fetch-aborts": "node scripts/check-effect-api-fetch-aborts.mjs",
     "check:identifier-banner-loading": "node scripts/check-identifier-banner-loading.mjs",
     "test:grant-milestone-home-race": "jest --selectProjects hooks --runInBand __tests__/grant-milestone-home-race.integration.test.tsx",
+    "test:scouting-photo-caption-failure-check": "jest --selectProjects unit --runInBand __tests__/scouting-photo-caption-failure-check.test.ts",
     "test:block-filter-history": "jest --selectProjects hooks --runInBand __tests__/vine-scouting-history-export.test.tsx __tests__/vine-spray-diary-history-photo-reload.test.tsx -t \"block filter shortcuts\"",
     "test:mastitis-trend-csv-native-handoff": "jest --selectProjects unit --runInBand __tests__/mastitis-trend-csv-native-handoff.test.ts",
     "test:vine-register-pdf-native-handoff": "jest --selectProjects unit --runInBand __tests__/vine-register-pdf-native-handoff.test.ts",

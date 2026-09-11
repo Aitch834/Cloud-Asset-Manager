@@ -23,6 +23,7 @@ const suffix = `${Date.now()}-${process.pid}`;
 const tenantASlug = `scouting-photo-access-a-${suffix}`;
 const tenantBSlug = `scouting-photo-access-b-${suffix}`;
 const devBypass = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
+const originalNodeEnv = process.env.NODE_ENV;
 
 let tenantAId: number | undefined;
 let tenantBId: number | undefined;
@@ -119,6 +120,9 @@ async function createFixtures(): Promise<void> {
 
 async function main(): Promise<void> {
   await createFixtures();
+  // The test exercises the deliberate failure seam and the production guard in
+  // one isolated process. The API reads NODE_ENV per request.
+  process.env.NODE_ENV = "development";
 
   // Import after the signer replacement so the route's storage instance uses
   // the deterministic test double through the shared class prototype.
@@ -142,6 +146,8 @@ async function main(): Promise<void> {
       `${apiBase}/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}/url`;
     const listUrl = (farmId: number, scoutingId: number) =>
       `${apiBase}/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`;
+    const captionPatchUrl = (farmId: number, scoutingId: number, photoId: number) =>
+      `${apiBase}/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`;
 
     const validListResponse = await fetch(listUrl(farmAId!, scoutingAId!), { headers });
     assert.equal(validListResponse.status, 200, "a photo list belonging to the requested record and farm should be accessible");
@@ -226,6 +232,38 @@ async function main(): Promise<void> {
       "rejected cross-record, cross-farm, and cross-tenant requests must not generate storage URLs",
     );
 
+    const captionHeaders = {
+      ...headers,
+      "content-type": "application/json",
+      "x-bde-force-scouting-photo-caption-failure": "true",
+    };
+    const forcedFailure = await fetch(captionPatchUrl(farmAId!, scoutingAId!, validPhotoId!), {
+      method: "PATCH",
+      headers: captionHeaders,
+      body: JSON.stringify({ caption: "This caption must not be saved" }),
+    });
+    assert.equal(forcedFailure.status, 503, "development header should reject only the caption PATCH");
+    const forcedFailureCaption = await db.execute(sql`
+      SELECT caption FROM vineyard_scouting_photos WHERE id = ${validPhotoId!}
+    `);
+    assert.equal(
+      (forcedFailureCaption.rows[0] as { caption: string | null }).caption,
+      null,
+      "the deliberate development failure must leave the uploaded photo unchanged",
+    );
+
+    process.env.NODE_ENV = "production";
+    const productionGuardResponse = await fetch(captionPatchUrl(farmAId!, scoutingAId!, validPhotoId!), {
+      method: "PATCH",
+      headers: captionHeaders,
+      body: JSON.stringify({ caption: "Production ignores test header" }),
+    });
+    assert.equal(
+      productionGuardResponse.status,
+      200,
+      "production must ignore the device-check header and save the caption normally",
+    );
+
     console.log("Scouting photo access regression passed.");
     console.log("  valid list: 200 and one storage URL generated");
     console.log("  mismatched list record: 404 without storage access");
@@ -235,6 +273,8 @@ async function main(): Promise<void> {
     console.log("  other record: 404 without storage access");
     console.log("  other farm: 404 without storage access");
     console.log("  other tenant: 404 without storage access");
+    console.log("  development caption check: 503 without changing the photo");
+    console.log("  production guard: header ignored and normal caption save succeeds");
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
@@ -249,6 +289,11 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
     ObjectStorageService.prototype.getPresignedDownloadUrl = originalSigner;
 
     if (validPhotoId !== undefined || otherRecordPhotoId !== undefined || otherFarmPhotoId !== undefined) {

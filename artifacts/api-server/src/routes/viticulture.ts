@@ -892,6 +892,19 @@ router.patch("/farms/:farmId/vineyard-scouting/:id/photos/:photoId", requireAuth
   const photoId = Number(req.params.photoId);
   const { caption, isCover } = req.body as { caption?: string | null; isCover?: boolean };
 
+  // This is a device-check seam, not a general failure switch. The mobile app
+  // sends it only for the optional post-upload caption prompt, and production
+  // deliberately ignores it even if a client forges the header.
+  if (
+    process.env.NODE_ENV === "development"
+    && req.get("x-bde-force-scouting-photo-caption-failure") === "true"
+    && caption !== undefined
+    && isCover === undefined
+  ) {
+    res.status(503).json({ error: "Caption save deliberately failed for the development device check" });
+    return;
+  }
+
   if (caption !== undefined && typeof caption !== "string" && caption !== null) {
     res.status(400).json({ error: "caption must be a string or null" });
     return;

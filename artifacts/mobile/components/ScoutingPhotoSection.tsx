@@ -1165,6 +1165,9 @@ export function ScoutingPhotoSection({
   // ID of a freshly-uploaded photo awaiting an optional caption before the list reloads
   const [pendingCaptionPhotoId, setPendingCaptionPhotoId] = useState<number | null>(null);
   const [captionSaveWarning, setCaptionSaveWarning] = useState(false);
+  // Development-only, one-shot device-check control. It is reset before the
+  // request so it cannot leak into a later post-upload caption save.
+  const [forcePendingCaptionFailure, setForcePendingCaptionFailure] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
   const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
@@ -1311,11 +1314,14 @@ export function ScoutingPhotoSection({
     const photoId = pendingCaptionPhotoId;
     setPendingCaptionPhotoId(null);
     if (photoId && caption.trim()) {
+      const forceCaptionFailure = forcePendingCaptionFailure;
+      setForcePendingCaptionFailure(false);
       try {
         const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ caption: caption.trim() }),
+          forceScoutingPhotoCaptionFailure: forceCaptionFailure,
         });
         if (!res.ok) setCaptionSaveWarning(true);
       } catch {
@@ -1447,6 +1453,28 @@ export function ScoutingPhotoSection({
       <Text style={sectionStyles.helperText}>
         Tap a photo to view or edit its caption. Long-press a thumbnail for quick options.
       </Text>
+      {__DEV__ ? (
+        <Pressable
+          style={[
+            photoStyles.captionFailureCheck,
+            forcePendingCaptionFailure && photoStyles.captionFailureCheckArmed,
+          ]}
+          onPress={() => setForcePendingCaptionFailure((armed) => !armed)}
+          accessibilityRole="switch"
+          accessibilityLabel="Force the next post-upload caption save to fail"
+          accessibilityState={{ checked: forcePendingCaptionFailure }}
+          testID="scouting-photo-caption-failure-check"
+        >
+          <Feather
+            name={forcePendingCaptionFailure ? "alert-triangle" : "tool"}
+            size={14}
+            color={forcePendingCaptionFailure ? "#92400e" : colors.textSecondary}
+          />
+          <Text style={photoStyles.captionFailureCheckText}>
+            Dev check: next caption save {forcePendingCaptionFailure ? "will fail" : "works normally"}
+          </Text>
+        </Pressable>
+      ) : null}
       {loading ? (
         <ActivityIndicator size="small" color={colors.textSecondary} style={{ marginTop: spacing.sm }} />
       ) : (
@@ -1601,6 +1629,24 @@ const photoStyles = StyleSheet.create({
   },
   captionSaveWarningText: {
     color: "#fff",
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+  },
+  captionFailureCheck: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    backgroundColor: colors.background,
+  },
+  captionFailureCheckArmed: {
+    backgroundColor: "#fef3c7",
+  },
+  captionFailureCheckText: {
+    color: colors.textSecondary,
     fontSize: fontSize.xs,
     fontFamily: fonts.medium,
   },

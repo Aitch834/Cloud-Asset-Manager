@@ -2,6 +2,23 @@ import { kvGet } from "@/lib/database";
 import { getApiBase } from "@/lib/uploadPhoto";
 import { getMobileAuthToken } from "@/lib/authToken";
 
+export const FORCE_SCOUTING_PHOTO_CAPTION_FAILURE_HEADER =
+  "x-bde-force-scouting-photo-caption-failure";
+
+/**
+ * Extra controls that are intentionally available only to development builds.
+ * They are stripped before the native fetch call so they never become browser
+ * request options.
+ */
+export type ApiFetchOptions = RequestInit & {
+  /**
+   * Ask the development API to reject a post-upload scouting-photo caption
+   * save. This is ignored by production builds and only used for the device
+   * warning check.
+   */
+  forceScoutingPhotoCaptionFailure?: boolean;
+};
+
 async function getTenantSlug(): Promise<string | null> {
   try {
     const farmRaw = await kvGet("bde_current_farm");
@@ -24,7 +41,8 @@ async function getTenantSlug(): Promise<string | null> {
  * cookies are unavailable), plus the current farm's tenant slug, which
  * tenant-scoped routes require.
  */
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function apiFetch(path: string, options: ApiFetchOptions = {}): Promise<Response> {
+  const { forceScoutingPhotoCaptionFailure, ...init } = options;
   const base = getApiBase();
   const [token, tenantSlug] = await Promise.all([getMobileAuthToken(), getTenantSlug()]);
   const headers: Record<string, string> = {
@@ -35,6 +53,11 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   }
   if (tenantSlug) {
     headers["x-tenant-slug"] = tenantSlug;
+  }
+  // __DEV__ is compiled to false in release builds, so a production app can
+  // never send this testing header.
+  if (__DEV__ && forceScoutingPhotoCaptionFailure) {
+    headers[FORCE_SCOUTING_PHOTO_CAPTION_FAILURE_HEADER] = "true";
   }
   return fetch(`${base}${path}`, {
     credentials: "include",
