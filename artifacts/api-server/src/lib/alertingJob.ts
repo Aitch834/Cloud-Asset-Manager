@@ -13,6 +13,25 @@ const ESCALATION_DAYS = 7;
 
 const CRITICAL_TYPES = new Set(["movement_unnotified", "certificate_expired", "nonconformance_escalated", "water_quality_fail", "pest_control_overdue", "cleaning_overdue", "shop_stock_out", "dairy_lab_concern", "dairy_abr_positive", "dairy_mobility_lameness", "scouting_xylella", "scouting_phytophthora", "scouting_vine_weevil", "scouting_high_disease", "scouting_high_pest", "bng_compliance_breach", "fp_intake_rejected", "livestock_withdrawal_active"]);
 
+export async function getMilestoneOverdueEmailRecipients(tenantId: number) {
+  return db
+    .select({
+      email: usersTable.email,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+    })
+    .from(usersTable)
+    .innerJoin(userTenantsTable, eq(userTenantsTable.userId, usersTable.id))
+    .where(
+      and(
+        eq(userTenantsTable.tenantId, tenantId),
+        eq(userTenantsTable.isActive, true),
+        eq(userTenantsTable.receiveAlerts, true),
+        isNotNull(usersTable.email),
+      ),
+    );
+}
+
 async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   const [smsModule] = await db
     .select({ id: modulesTable.id })
@@ -2015,22 +2034,7 @@ export async function checkAgriEnvMilestoneDeadlines() {
     let anyDelivered = false;
 
     // Email active users on this tenant who opted in to alerts
-    const recipients = await db
-      .select({
-        email: usersTable.email,
-        firstName: usersTable.firstName,
-        lastName: usersTable.lastName,
-      })
-      .from(usersTable)
-      .innerJoin(userTenantsTable, eq(userTenantsTable.userId, usersTable.id))
-      .where(
-        and(
-          eq(userTenantsTable.tenantId, farm.tenantId),
-          eq(userTenantsTable.isActive, true),
-          eq(userTenantsTable.receiveAlerts, true),
-          isNotNull(usersTable.email),
-        )
-      );
+    const recipients = await getMilestoneOverdueEmailRecipients(farm.tenantId);
 
     for (const user of recipients) {
       if (!user.email) continue;
