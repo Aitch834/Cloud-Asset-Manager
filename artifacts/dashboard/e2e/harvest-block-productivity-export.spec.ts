@@ -285,18 +285,19 @@ test.describe("Harvest block productivity exports", () => {
     }
   });
 
-  test("show Season Totals for a single linked block in the selected vintage", async ({ page }) => {
+  test("show Season Totals for a zero-yield single linked block in the selected vintage", async ({ page }) => {
     let blockId: number | null = null;
     let harvestId: number | null = null;
 
     try {
       blockId = await createBlock(SINGLE_BLOCK, 2);
-      harvestId = await createHarvest(blockId, 500);
+      harvestId = await createHarvest(blockId, 0);
 
       await openSeededHarvest(page, SINGLE_BLOCK_RUN_TAG, [SINGLE_BLOCK]);
 
       // The persisted year filter selects one vintage, and the run-tag search
-      // leaves exactly one linked block in the Per-Block Yield Summary.
+      // leaves exactly one linked block with a recorded zero yield in the
+      // Per-Block Yield Summary.
       await expect(
         page.getByRole("combobox").filter({ hasText: String(VINTAGE_YEAR) }),
       ).toBeVisible();
