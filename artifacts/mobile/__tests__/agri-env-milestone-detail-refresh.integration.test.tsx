@@ -99,6 +99,10 @@ jest.mock("../lib/storage", () => ({
 
 jest.mock("../lib/agriEnvMilestoneCache", () => ({
   canApplyMilestoneLoad: jest.fn(() => true),
+  confirmMilestoneSave: jest.fn(async (_updated, persist) => {
+    await persist(_updated);
+    return { offlineAvailable: true };
+  }),
   persistMilestoneCacheUpdate: jest.fn(async () => ({ hydration: null })),
 }));
 
@@ -148,6 +152,17 @@ const siblingMilestone = {
   evidenceNotes: null,
 };
 
+const paidMilestone = {
+  ...initialMilestone,
+  status: "paid",
+  completionDate: "2026-09-01",
+  claimAmountPence: 30_000,
+};
+
+type MockMilestone = Omit<typeof initialMilestone, "claimAmountPence"> & {
+  claimAmountPence: number | null;
+};
+
 function response(payload: unknown): Response {
   return {
     ok: true,
@@ -157,24 +172,21 @@ function response(payload: unknown): Response {
 }
 
 describe("agri-environment milestone remaining balance", () => {
+  let serverMilestone: MockMilestone = initialMilestone;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    serverMilestone = initialMilestone;
     useFarm.mockReturnValue({
       currentFarm: { id: 3, name: "Test Farm" },
     });
     apiFetch.mockImplementation(async (url: string, options?: RequestInit) => {
       if (options?.method === "PUT") {
-        return response({
-          milestone: {
-            ...initialMilestone,
-            status: "paid",
-            completionDate: "2026-09-01",
-            claimAmountPence: 30_000,
-          },
-        });
+        serverMilestone = paidMilestone;
+        return response({ milestone: serverMilestone });
       }
       if (url.endsWith("/agri-env-projects/7/milestones")) {
-        return response({ milestones: [initialMilestone, siblingMilestone] });
+        return response({ milestones: [serverMilestone, siblingMilestone] });
       }
       if (url.endsWith("/agri-env-projects")) {
         return response({ projects: [project] });
@@ -205,7 +217,37 @@ describe("agri-environment milestone remaining balance", () => {
       );
       expect(screen.getByText("£500 left")).toBeTruthy();
       expect(screen.getByText("£500 claimed so far")).toBeTruthy();
-      expect(screen.getByText("Paid")).toBeTruthy();
+      expect(screen.getAllByText("Paid").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("shows the server-confirmed paid claim after reopening the milestone", async () => {
+    const firstVisit = render(<AgriEnvMilestoneDetailScreen />);
+
+    await waitFor(() => {
+      expect(firstVisit.getByText("£800 left")).toBeTruthy();
+    });
+
+    fireEvent.press(firstVisit.getByTestId("edit-milestone-button"));
+    fireEvent.press(firstVisit.getByTestId("milestone-status-paid"));
+    fireEvent.changeText(
+      firstVisit.getByTestId("milestone-claim-amount-input"),
+      "300",
+    );
+    fireEvent.press(firstVisit.getByTestId("save-milestone-button"));
+
+    await waitFor(() => {
+      expect(serverMilestone).toEqual(paidMilestone);
+    });
+
+    firstVisit.unmount();
+    const reopened = render(<AgriEnvMilestoneDetailScreen />);
+
+    await waitFor(() => {
+      expect(reopened.getAllByText("Paid").length).toBeGreaterThan(0);
+      expect(reopened.getByText("£300")).toBeTruthy();
+      expect(reopened.getByText("£500 left")).toBeTruthy();
+      expect(reopened.getByText("£500 claimed so far")).toBeTruthy();
     });
   });
 });
