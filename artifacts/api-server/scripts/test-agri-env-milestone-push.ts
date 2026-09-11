@@ -20,6 +20,8 @@ type ExpoRequest = {
   payload: Record<string, unknown>;
 };
 
+type ExpoOutcome = "http-error" | "rejected" | "accepted";
+
 function datePlusDays(days: number): string {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
@@ -35,6 +37,7 @@ async function main(): Promise<void> {
   const testEmail = `agri-env-push-${suffix}@example.test`;
   const dueDate = datePlusDays(7);
   const expoRequests: ExpoRequest[] = [];
+  const expoOutcomes: ExpoOutcome[] = ["http-error", "rejected", "accepted"];
 
   let tenantId: number | undefined;
   let farmId: number | undefined;
@@ -52,12 +55,16 @@ async function main(): Promise<void> {
     globalThis.fetch = async (...args: Parameters<typeof fetch>): Promise<Response> => {
       const [input, init] = args;
       const body = typeof init?.body === "string" ? init.body : "";
+      const outcome = expoOutcomes.shift();
       expoRequests.push({
         url: String(input),
         payload: JSON.parse(body) as Record<string, unknown>,
       });
-      return new Response(JSON.stringify({ data: { status: "ok" } }), {
-        status: 200,
+      assert.ok(outcome, "the test received an unexpected extra Expo request");
+      return new Response(JSON.stringify({
+        data: { status: outcome === "accepted" ? "ok" : "error" },
+      }), {
+        status: outcome === "http-error" ? 503 : 200,
         headers: { "Content-Type": "application/json" },
       });
     };
@@ -136,18 +143,59 @@ async function main(): Promise<void> {
       data: { href: "/agri-env-projects" },
     });
 
-    const firstRunRows = await db.execute(sql`
+    const afterHttpFailureRows = await db.execute(sql`
+      SELECT push_7d_sent_at
+      FROM agri_env_milestones
+      WHERE id = ${milestoneId}
+    `);
+    assert.equal(
+      (afterHttpFailureRows.rows[0] as { push_7d_sent_at: string | null }).push_7d_sent_at,
+      null,
+      "a non-2xx Expo response must leave push_7d_sent_at unset",
+    );
+
+    await checkAgriEnvMilestoneDeadlines();
+    assert.equal(expoRequests.length, 1, "an active push lease must prevent an immediate retry");
+
+    await db.execute(sql`
+      UPDATE agri_env_milestones
+      SET push_7d_claimed_at = NOW() - INTERVAL '61 minutes'
+      WHERE id = ${milestoneId}
+    `);
+    await checkAgriEnvMilestoneDeadlines();
+    assert.equal(expoRequests.length, 2, "the push should retry after the failed-send lease expires");
+
+    const afterRejectedTicketRows = await db.execute(sql`
+      SELECT push_7d_sent_at
+      FROM agri_env_milestones
+      WHERE id = ${milestoneId}
+    `);
+    assert.equal(
+      (afterRejectedTicketRows.rows[0] as { push_7d_sent_at: string | null }).push_7d_sent_at,
+      null,
+      "an all-rejected Expo ticket response must leave push_7d_sent_at unset",
+    );
+
+    await db.execute(sql`
+      UPDATE agri_env_milestones
+      SET push_7d_claimed_at = NOW() - INTERVAL '61 minutes'
+      WHERE id = ${milestoneId}
+    `);
+    await checkAgriEnvMilestoneDeadlines();
+    assert.equal(expoRequests.length, 3, "the rejected push should retry after its lease expires");
+
+    const afterAcceptedTicketRows = await db.execute(sql`
       SELECT push_7d_sent_at
       FROM agri_env_milestones
       WHERE id = ${milestoneId}
     `);
     assert.ok(
-      (firstRunRows.rows[0] as { push_7d_sent_at: string | null }).push_7d_sent_at,
-      "a successful Expo ticket must stamp push_7d_sent_at",
+      (afterAcceptedTicketRows.rows[0] as { push_7d_sent_at: string | null }).push_7d_sent_at,
+      "a later accepted Expo ticket must stamp push_7d_sent_at",
     );
 
     await checkAgriEnvMilestoneDeadlines();
-    assert.equal(expoRequests.length, 1, "a second run must not duplicate the push");
+    assert.equal(expoRequests.length, 3, "a sent push must not be duplicated");
 
     const terminalStatusIds = [paidMilestoneId, cancelledMilestoneId];
     const terminalRowsBefore = await db.execute(sql`
@@ -166,13 +214,15 @@ async function main(): Promise<void> {
       terminalRowsBefore.rows.map((row) => Number((row as { id: number }).id)).sort((a, b) => a - b),
       terminalStatusIds.sort((a, b) => a - b),
     );
-    assert.equal(expoRequests.length, 1, "paid and cancelled milestones must not reach Expo");
+    assert.equal(expoRequests.length, 3, "paid and cancelled milestones must not reach Expo");
 
     console.log("✓ agri-environment 7-day milestone push guard passed");
     console.log(`  due date: ${dueDate}`);
     console.log("  Expo payload: verified");
-    console.log("  push_7d_sent_at: stamped");
-    console.log("  second run: no duplicate push");
+    console.log("  non-2xx response: left retryable");
+    console.log("  all-rejected tickets: left retryable");
+    console.log("  expired leases: retried");
+    console.log("  accepted retry: stamped without later duplicate");
     console.log("  paid/cancelled milestones: skipped");
   } finally {
     globalThis.fetch = originalFetch;
