@@ -64,7 +64,7 @@ import { getTopHarvestSummaryBlockName } from "@/lib/harvest-block-summary";
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printHarvest, downloadVineHarvestPdf, emailHarvestReport, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
-import { buildHarvestChemistryCsvSection, buildHarvestCsvContent, buildHarvestYieldByVarietyCsvSection } from "@/lib/harvest-csv";
+import { buildHarvestChemistryCsvSection, buildHarvestCsvContent, buildHarvestYieldByVarietyCsvSection, buildWineGBSurveyCsvSection } from "@/lib/harvest-csv";
 
 type Harvest = Record<string, unknown>;
 
@@ -1171,74 +1171,20 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       const s = sanitiseCsvCell(v == null ? "" : String(v));
       return `"${s.replace(/"/g, '""')}"`;
     };
-    const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 
     const uniqueVintages = [...new Set(rows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse();
     const vintageLabel = uniqueVintages.length === 1 ? uniqueVintages[0]
       : uniqueVintages.length > 1 ? `${uniqueVintages[uniqueVintages.length - 1]}–${uniqueVintages[0]}`
       : "all";
 
-    // Group records by variety (via their linked block)
-    const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[]; pickCount: number }> = {};
-    for (const r of rows) {
-      const block = r.blockId != null ? blocks.find(b => String(b.id) === String(r.blockId)) : null;
-      const variety = block ? String(block.variety ?? "").trim() : "";
-      const key = variety || "Unknown / Not linked";
-      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [], pickCount: 0 };
-      const entry = varietyMap[key];
-      entry.pickCount++;
-      entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
-      // Accumulate area from each unique block only once per variety
-      if (block && r.blockId != null && !entry.blockIds.has(r.blockId)) {
-        entry.blockIds.add(r.blockId);
-        const ha = parseFloat(String((block.areaHa ?? block.area ?? "")));
-        if (!isNaN(ha) && ha > 0) entry.totalHa += ha;
-      }
-      const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) entry.brixVals.push(brix);
-      const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) entry.phVals.push(ph);
-      const ta = parseFloat(String(r.titratableAcidityGl ?? "")); if (!isNaN(ta)) entry.taVals.push(ta);
-      const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) entry.paVals.push(pa);
-    }
-
-    const header = [
-      "Variety", "Area Under Vine (ha)", "Total Harvested (kg)", "Yield (kg/ha)",
-      "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Potential Alcohol %",
-    ].map(h => cell(h)).join(",");
-
-    const dataRows = Object.entries(varietyMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([variety, e]) => {
-        const kgPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null;
-        return [
-          cell(variety),
-          cell(e.totalHa > 0 ? e.totalHa.toFixed(2) : ""),
-          cell(e.totalKg > 0 ? e.totalKg.toFixed(1) : ""),
-          cell(kgPerHa != null ? kgPerHa.toFixed(0) : ""),
-          cell(avg(e.brixVals) != null ? avg(e.brixVals)!.toFixed(1) : ""),
-          cell(avg(e.phVals) != null ? avg(e.phVals)!.toFixed(2) : ""),
-          cell(avg(e.taVals) != null ? avg(e.taVals)!.toFixed(2) : ""),
-          cell(avg(e.paVals) != null ? avg(e.paVals)!.toFixed(1) : ""),
-        ].join(",");
-      });
-
-    // Grand total footer
-    const grandKg = Object.values(varietyMap).reduce((s, e) => s + e.totalKg, 0);
-    const grandHa = Object.values(varietyMap).reduce((s, e) => s + e.totalHa, 0);
-    const grandKgPerHa = grandHa > 0 && grandKg > 0 ? grandKg / grandHa : null;
-    const footer = [
-      cell("TOTAL"),
-      cell(grandHa > 0 ? grandHa.toFixed(2) : ""),
-      cell(grandKg > 0 ? grandKg.toFixed(1) : ""),
-      cell(grandKgPerHa != null ? grandKgPerHa.toFixed(0) : ""),
-      cell(""), cell(""), cell(""), cell(""),
-    ].join(",");
+    const surveyLines = buildWineGBSurveyCsvSection(rows, blocks);
 
     const _w2 = buildViticultureUnlinkedWarning(rows);
     const warningLine = _w2 ? _w2 + "\n" : "";
 
     // Low-pick warning: varieties with only 1 harvest record have less representative averages
     const lowPickWarningNote = buildWineGBLowPickNote(
-      Object.entries(varietyMap).map(([variety, entry]) => [variety, entry.pickCount] as [string, number]),
+      getWineGBVarietyPickCounts(rows, blocks),
     );
     const lowPickWarningLine = lowPickWarningNote ? cell(lowPickWarningNote) + "\n" : "";
 
@@ -1246,9 +1192,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       cell(`WineGB Harvest Yield Survey — ${farmName ?? ""} — Vintage ${vintageLabel}`),
       cell("Submit this data at winegb.co.uk (members area → Harvest Yield Survey). Select the correct vintage year when submitting."),
       "",
-      header,
-      ...dataRows,
-      footer,
+      ...surveyLines,
     ].join("\n");
 
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });

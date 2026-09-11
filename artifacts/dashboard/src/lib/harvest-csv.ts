@@ -216,6 +216,105 @@ export function buildHarvestYieldByVarietyCsvSection(
   ];
 }
 
+export function buildWineGBSurveyCsvSection(
+  rows: HarvestCsvRow[],
+  blocks: HarvestCsvBlock[],
+): string[] {
+  const average = (values: number[]) => values.length > 0
+    ? values.reduce((sum, value) => sum + value, 0) / values.length
+    : null;
+  const varietyMap: Record<string, {
+    totalKg: number;
+    totalHa: number;
+    blockIds: Set<unknown>;
+    brixVals: number[];
+    phVals: number[];
+    taVals: number[];
+    paVals: number[];
+  }> = {};
+
+  for (const row of rows) {
+    const block = row.blockId != null
+      ? blocks.find(candidate => String(candidate.id) === String(row.blockId))
+      : null;
+    const variety = block ? String(block.variety ?? "").trim() : "";
+    const key = variety || "Unknown / Not linked";
+    if (!varietyMap[key]) {
+      varietyMap[key] = {
+        totalKg: 0,
+        totalHa: 0,
+        blockIds: new Set(),
+        brixVals: [],
+        phVals: [],
+        taVals: [],
+        paVals: [],
+      };
+    }
+
+    const entry = varietyMap[key];
+    entry.totalKg += parseFloat(String(row.yieldKg ?? 0)) || 0;
+    if (block && row.blockId != null && !entry.blockIds.has(row.blockId)) {
+      entry.blockIds.add(row.blockId);
+      const areaHa = parseFloat(String(block.areaHa ?? block.area ?? ""));
+      if (!isNaN(areaHa) && areaHa > 0) entry.totalHa += areaHa;
+    }
+
+    const brix = parseFloat(String(row.brix ?? ""));
+    if (!isNaN(brix)) entry.brixVals.push(brix);
+    const ph = parseFloat(String(row.ph ?? ""));
+    if (!isNaN(ph)) entry.phVals.push(ph);
+    const ta = parseFloat(String(row.titratableAcidityGl ?? ""));
+    if (!isNaN(ta)) entry.taVals.push(ta);
+    const pa = parseFloat(String(row.potentialAlcohol ?? ""));
+    if (!isNaN(pa)) entry.paVals.push(pa);
+  }
+
+  const header = [
+    cell("Variety"),
+    cell("Area Under Vine (ha)"),
+    cell("Total Harvested (kg)"),
+    cell("Yield (kg/ha)"),
+    cell("Avg Brix °"),
+    cell("Avg pH"),
+    cell("Avg TA (g/L)"),
+    cell("Avg Potential Alcohol %"),
+  ].join(",");
+
+  const dataRows = Object.entries(varietyMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([variety, entry]) => {
+      const kgPerHa = entry.totalHa > 0 && entry.totalKg > 0
+        ? entry.totalKg / entry.totalHa
+        : null;
+      return [
+        cell(variety),
+        cell(entry.totalHa > 0 ? entry.totalHa.toFixed(2) : ""),
+        cell(entry.totalKg > 0 ? entry.totalKg.toFixed(1) : ""),
+        cell(kgPerHa != null ? kgPerHa.toFixed(0) : ""),
+        cell(average(entry.brixVals) != null ? average(entry.brixVals)!.toFixed(1) : ""),
+        cell(average(entry.phVals) != null ? average(entry.phVals)!.toFixed(2) : ""),
+        cell(average(entry.taVals) != null ? average(entry.taVals)!.toFixed(2) : ""),
+        cell(average(entry.paVals) != null ? average(entry.paVals)!.toFixed(1) : ""),
+      ].join(",");
+    });
+
+  const grandKg = Object.values(varietyMap).reduce((sum, entry) => sum + entry.totalKg, 0);
+  const grandHa = Object.values(varietyMap).reduce((sum, entry) => sum + entry.totalHa, 0);
+  const grandKgPerHa = grandHa > 0 && grandKg > 0 ? grandKg / grandHa : null;
+  const footer = [
+    cell("TOTAL"),
+    cell(grandHa > 0 ? grandHa.toFixed(2) : ""),
+    cell(grandKg > 0 ? grandKg.toFixed(1) : ""),
+    cell(grandKgPerHa != null ? grandKgPerHa.toFixed(0) : ""),
+    cell(""),
+    cell(""),
+    cell(""),
+    cell(""),
+  ].join(",");
+
+  return [header, ...dataRows, footer];
+}
+
 export type HarvestExportSections = {
   warningLine: string;
   lowPickWarningLine: string;

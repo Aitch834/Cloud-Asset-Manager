@@ -4,6 +4,7 @@ import {
   buildHarvestChemistryCsvSection,
   buildHarvestCsvContent,
   buildHarvestYieldByVarietyCsvSection,
+  buildWineGBSurveyCsvSection,
 } from "./harvest-csv";
 
 describe("deriveTonnesPerHa", () => {
@@ -85,6 +86,29 @@ describe("harvest Yield by Variety CSV", () => {
     expect(section.at(-1)).toBe(
       '"† Block area not set — add it in Block Settings to see yield per hectare"',
     );
+  });
+});
+
+describe("WineGB harvest survey CSV", () => {
+  it("keeps yield in kg/ha for each variety and the total", () => {
+    const section = buildWineGBSurveyCsvSection(
+      [
+        { blockId: 1, yieldKg: 600 },
+        { blockId: 1, yieldKg: 400 },
+        { blockId: 2, yieldKg: 2_000 },
+      ],
+      [
+        { id: 1, variety: "Chardonnay", areaHa: 2 },
+        { id: 2, variety: "Pinot Noir", areaHa: 3 },
+      ],
+    );
+
+    expect(section[0]).toBe(
+      '"Variety","Area Under Vine (ha)","Total Harvested (kg)","Yield (kg/ha)","Avg Brix °","Avg pH","Avg TA (g/L)","Avg Potential Alcohol %"',
+    );
+    expect(section).toContain('"Chardonnay","2.00","1000.0","500","","","",""');
+    expect(section).toContain('"Pinot Noir","3.00","2000.0","667","","","",""');
+    expect(section).toContain('"TOTAL","5.00","3000.0","600","","","",""');
   });
 });
 
