@@ -744,17 +744,18 @@ export function FieldCardMenu({
           </DialogHeader>
           <form onSubmit={handleSubmit(handleEdit)} className="space-y-4 mt-4">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Field Name / ID</label>
-              <Input {...register("name", { required: true })} placeholder="e.g. North Pasture" />
+              <label htmlFor="edit-field-name" className="text-sm font-medium mb-1.5 block">Field Name / ID</label>
+              <Input id="edit-field-name" {...register("name", { required: true })} placeholder="e.g. North Pasture" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Area (ha)</label>
-                <Input type="number" step="0.0001" {...register("areaHectares", { valueAsNumber: true })} />
+                <label htmlFor="edit-field-area" className="text-sm font-medium mb-1.5 block">Area (ha)</label>
+                <Input id="edit-field-area" type="number" step="0.0001" {...register("areaHectares", { valueAsNumber: true })} />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Soil Type</label>
+                <label htmlFor="edit-field-soil-type" className="text-sm font-medium mb-1.5 block">Soil Type</label>
                 <select
+                  id="edit-field-soil-type"
                   {...register("soilType")}
                   className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 >
@@ -775,8 +776,8 @@ export function FieldCardMenu({
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">RPA Parcel Reference</label>
-              <Input {...register("fieldReference")} placeholder="e.g. TF 1234 5678" />
+              <label htmlFor="edit-field-reference" className="text-sm font-medium mb-1 block">RPA Parcel Reference</label>
+              <Input id="edit-field-reference" {...register("fieldReference")} placeholder="e.g. TF 1234 5678" />
               <p className="text-xs text-muted-foreground mt-1">
                 Find this in the{" "}
                 <a href="https://www.ruralpayments.service.gov.uk" target="_blank" rel="noopener noreferrer" className="underline text-primary">
