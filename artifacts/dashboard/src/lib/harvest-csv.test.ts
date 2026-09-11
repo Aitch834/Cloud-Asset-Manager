@@ -47,6 +47,22 @@ describe("harvest Yield by Variety CSV", () => {
     expect(section).toContain('"TOTAL","5.00","3000.0","0.60","","","",""');
   });
 
+  it("excludes a named missing-area variety from total t/ha but keeps its kilograms in the total", () => {
+    const section = buildHarvestYieldByVarietyCsvSection(
+      [
+        ...rows,
+        { blockId: 3, yieldKg: 1_500 },
+      ],
+      [
+        ...blocks,
+        { id: 3, variety: "Seyval Blanc", areaHa: null },
+      ],
+    );
+
+    expect(section).toContain('"Seyval Blanc","","1500.0","†","","","",""');
+    expect(section).toContain('"TOTAL","5.00","4500.0","0.60","","","",""');
+  });
+
   it.each(["summary", "full"] as const)(
     "keeps the section included in %s export mode",
     mode => {
