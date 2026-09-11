@@ -29,6 +29,10 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet, kvSet } from "@/lib/database";
 import { getCurrentAuthToken } from "@/lib/authToken";
 import { useApiModules } from "@/lib/hooks/useApiModules";
+import {
+  rememberMaintenanceEditOperator,
+  rememberMovementEditOperator,
+} from "@/lib/operatorNameMemory";
 import { getApiBase } from "@/lib/uploadPhoto";
 import { shouldShowModuleLoading } from "@/lib/utils/moduleLoadingGuard";
 import { deleteWineryVesselRecord } from "@/lib/utils/wineryVesselDelete";
@@ -845,10 +849,7 @@ function EditMaintenanceModal({ visible, farmId, vesselId, record, onClose, onSu
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? `Server error (${res.status})`);
       }
-      const submittedOperator = form.operatorName.trim();
-      if (submittedOperator) {
-        void kvSet("last_operator_name", submittedOperator);
-      }
+      void rememberMaintenanceEditOperator(form.operatorName, true);
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save changes.");
@@ -1225,10 +1226,7 @@ function EditMovementModal({ visible, farmId, vesselId, record, onClose, onSucce
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? `Server error (${res.status})`);
       }
-      const submittedOperator = form.operatorName.trim();
-      if (submittedOperator) {
-        void kvSet("last_operator_name", submittedOperator);
-      }
+      void rememberMovementEditOperator(form.operatorName, true);
       onSuccess();
       onClose();
     } catch (err) {
