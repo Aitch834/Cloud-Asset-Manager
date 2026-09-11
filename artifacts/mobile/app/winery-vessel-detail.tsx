@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BarrelRetirementWarning } from "@/components/BarrelRetirementWarning";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -33,7 +34,6 @@ import { shouldShowModuleLoading } from "@/lib/utils/moduleLoadingGuard";
 import { deleteWineryVesselRecord } from "@/lib/utils/wineryVesselDelete";
 import {
   BARREL_RETIREMENT_THRESHOLD_PENCE,
-  isBarrelType,
   resolveBarrelRetirementThresholdPence,
 } from "../lib/utils/vesselAlerts";
 
@@ -1392,7 +1392,6 @@ export default function WineryVesselDetailScreen() {
   const [movementModalOpen, setMovementModalOpen] = useState(false);
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
   const [logFillModalOpen, setLogFillModalOpen] = useState(false);
-  const [retirementAlertDismissed, setRetirementAlertDismissed] = useState(false);
   const [editingMaintenance, setEditingMaintenance] = useState<BarrelMaintenance | null>(null);
   const [editingMovement, setEditingMovement] = useState<BarrelMovement | null>(null);
   const [editingFill, setEditingFill] = useState<BarrelFill | null>(null);
@@ -1672,27 +1671,14 @@ export default function WineryVesselDetailScreen() {
               </TouchableOpacity>
             }
           />
-          {!loading &&
-          !error &&
-          retirementThresholdLoaded &&
-          !retirementAlertDismissed &&
-          isBarrelType(params.vesselType ?? null) &&
-          totalMaintenanceSpendPence > retirementThresholdPence ? (
-            <View style={styles.retirementWarning}>
-              <Feather name="alert-triangle" size={16} color="#D97706" style={styles.retirementWarningIcon} />
-              <Text style={styles.retirementWarningText}>
-                Total maintenance spend (£{(totalMaintenanceSpendPence / 100).toFixed(2)}) exceeds the retirement threshold (£{(retirementThresholdPence / 100).toFixed(0)}). Consider retiring this barrel.
-              </Text>
-              <TouchableOpacity
-                onPress={() => setRetirementAlertDismissed(true)}
-                style={styles.retirementWarningDismiss}
-                accessibilityRole="button"
-                accessibilityLabel="Dismiss retirement warning"
-              >
-                <Text style={styles.retirementWarningDismissText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
+          <BarrelRetirementWarning
+            loading={loading}
+            hasError={Boolean(error)}
+            thresholdLoaded={retirementThresholdLoaded}
+            vesselType={params.vesselType ?? null}
+            totalMaintenanceSpendPence={totalMaintenanceSpendPence}
+            thresholdPence={retirementThresholdPence}
+          />
           {data.maintenance.length === 0 ? (
             <EmptySection label="No cooperage or maintenance records." />
           ) : (
@@ -2128,37 +2114,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontFamily: fonts.semiBold,
     color: "#7c3aed",
-  },
-  retirementWarning: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: "#FCD34D",
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  retirementWarningIcon: {
-    marginTop: 1,
-  },
-  retirementWarningText: {
-    flex: 1,
-    fontSize: fontSize.xs,
-    fontFamily: fonts.regular,
-    color: "#92400E",
-    lineHeight: 18,
-  },
-  retirementWarningDismiss: {
-    paddingLeft: spacing.xs,
-    paddingBottom: spacing.xs,
-  },
-  retirementWarningDismissText: {
-    fontSize: fontSize.sm,
-    lineHeight: 16,
-    fontFamily: fonts.semiBold,
-    color: "#D97706",
   },
   // Fill badge
   fillBadge: {
