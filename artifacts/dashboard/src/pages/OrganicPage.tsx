@@ -282,32 +282,7 @@ function downloadInputRegisterCsv(records: OrganicInput[], farmName: string, cro
   ]);
 }
 function printInputRegister(records: OrganicInput[], farmName: string, cropYear: number | null, approvalStatusFilter = "all") {
-  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-  const yearLabel = cropYear ? `Crop Year ${cropYear}` : "All Years";
-  const approvalStatusLabel = approvalStatusFilter !== "all"
-    ? `${APPROVAL_STATUS_LABELS[approvalStatusFilter] ?? approvalStatusFilter} only`
-    : "";
-  const rows = records.map(r => `<tr>
-    <td style="white-space:nowrap">${r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "—"}</td>
-    <td style="font-weight:600">${r.productName}</td>
-    <td>${r.inputType || "—"}</td>
-    <td>${r.supplier || "—"}</td>
-    <td>${r.poReference || "—"}</td>
-    <td>${r.grnReference || "—"}</td>
-    <td style="font-weight:600;color:${r.approvalStatus === "permitted" ? "#166534" : r.approvalStatus === "restricted" ? "#92400e" : "#991b1b"}">${APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus}</td>
-    <td style="white-space:nowrap">${r.derogationExpiryDate ? new Date(r.derogationExpiryDate).toLocaleDateString("en-GB") : "—"}</td>
-    <td>${r.certifierApprovalRef || "—"}</td>
-    <td>${r.fieldName || "—"}</td>
-    <td>${r.quantityAmount ? `${r.quantityAmount}${r.quantityUnit ? " " + r.quantityUnit : ""}` : "—"}</td>
-    <td>${r.notes || "—"}</td>
-  </tr>`).join("");
-  openPrint(`<!DOCTYPE html><html><head><title>Input Register — ${farmName} — ${yearLabel}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
-<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Input Purchase Register · ${yearLabel}${approvalStatusLabel ? ` · ${approvalStatusLabel}` : ""} · Complementary Record</p></div>
-<div class="hdr-r"><b>Input Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Date Used</th><th>Product</th><th>Input Type</th><th>Supplier</th><th>PO Reference</th><th>GRN / Delivery</th><th>Approval Status</th><th>Derogation Expiry</th><th>Certifier Ref</th><th>Field / Area</th><th>Quantity</th><th>Notes</th></tr></thead>
-<tbody>${rows}</tbody></table>
-<div class="footer">Organic Input Register — Complementary record for Soil Association / OF&G portal. This register demonstrates that inputs used comply with organic standards. Retain with your organic certification documentation. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
-</body></html>`);
+  openPrint(buildInputRegisterPrintHtml(records, farmName, cropYear, approvalStatusFilter, PRINT_CSS));
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
