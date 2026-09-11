@@ -17,6 +17,26 @@ const barrelWithNoFillHistory = {
 };
 
 describe("barrel health exports", () => {
+  it("prints retirement warnings from maintenance totals above and below the configured threshold", () => {
+    const thresholdPence = 60_000;
+    const printRows = buildBarrelHealthPrintRows(
+      [
+        { ...barrelWithNoFillHistory, id: 42, vessel_ref: "B-042" },
+        { ...barrelWithNoFillHistory, id: 43, vessel_ref: "B-043" },
+      ],
+      5,
+      thresholdPence,
+      new Map([
+        [42, thresholdPence + 1],
+        [43, thresholdPence],
+      ]),
+    );
+    const warningColumn = BARREL_HEALTH_PRINT_HEADERS.indexOf("Retirement Warning");
+
+    expect(warningColumn).toBeGreaterThan(-1);
+    expect(printRows.map(row => row[warningColumn])).toEqual(["Yes", "No"]);
+  });
+
   it("keeps print headers and row values aligned with the CSV columns", () => {
     expect(BARREL_HEALTH_PRINT_HEADERS).toEqual([
       "Vessel Ref",
