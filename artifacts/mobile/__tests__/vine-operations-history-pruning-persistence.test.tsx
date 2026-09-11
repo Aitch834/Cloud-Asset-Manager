@@ -254,3 +254,69 @@ it("keeps edited pruning details after refresh and revisiting history", async ()
   expect(revisited.getByText("Cordon Spur · 8 buds/vine")).toBeTruthy();
   expect(revisited.queryByText("Must not render · 99 buds/vine")).toBeNull();
 });
+
+it("permanently clears pruning details when changing to a non-pruning operation", async () => {
+  serverRecords = [
+    {
+      id: 1,
+      operationDate: "2026-02-10",
+      blockId: 11,
+      blockName: "North Block",
+      operationType: "Winter Pruning",
+      operatorName: "Grower",
+      hoursWorked: 4,
+      notes: null,
+      pruningSystem: "Cordon Spur",
+      budsPerVineTarget: 10,
+      budsPerVineActual: 8,
+      pruningWeightKgPerVine: 0.45,
+      shootsRemovedPct: null,
+      leavesRemovedZone: null,
+      machineUsed: null,
+      contractorName: null,
+    },
+  ];
+
+  const screen = render(<VineOperationsHistoryScreen />);
+  fireEvent.press(screen.getByText("Winter Pruning"));
+  fireEvent.press(screen.getByText("Leaf Removal"));
+  fireEvent.press(screen.getByText("Save Changes"));
+
+  await waitFor(() => {
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/farms/farm-1/vineyard-operations/1",
+      expect.objectContaining({ method: "PUT" }),
+    );
+    expect(screen.getByText("Leaf Removal")).toBeTruthy();
+  });
+
+  const [, request] = apiFetch.mock.calls[0] as [
+    string,
+    { body?: string },
+  ];
+  expect(JSON.parse(request.body ?? "{}")).toEqual(
+    expect.objectContaining({
+      operationType: "Leaf Removal",
+      pruningSystem: null,
+      budsPerVineTarget: null,
+      budsPerVineActual: null,
+      pruningWeightKgPerVine: null,
+    }),
+  );
+
+  const list = screen
+    .UNSAFE_getAllByType("View" as never)
+    .find(node => node.props.refreshControl);
+  expect(list).toBeTruthy();
+  act(() => list!.props.refreshControl.props.onRefresh());
+  expect(refresh).toHaveBeenCalledTimes(1);
+
+  screen.unmount();
+  const revisited = render(<VineOperationsHistoryScreen />);
+  fireEvent.press(revisited.getByText("Leaf Removal"));
+  fireEvent.press(revisited.getByText("Winter Pruning"));
+
+  expect(revisited.getByPlaceholderText("e.g. 8").props.value).toBe("");
+  expect(revisited.getByPlaceholderText("e.g. 7").props.value).toBe("");
+  expect(revisited.getByPlaceholderText("e.g. 0.45").props.value).toBe("");
+});
