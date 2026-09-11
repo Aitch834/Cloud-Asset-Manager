@@ -903,7 +903,9 @@ export default function IrrigationAdvisorScreen() {
           {currentFarm?.name ? <Text style={styles.headerSub}>{currentFarm.name}</Text> : null}
           {lastUpdatedAt !== null && !loading && !refreshing ? (
             <Text style={styles.updatedLabel}>
-              {formatRelativeUpdatedAt(lastUpdatedAt, relativeTimeNow)}
+              {error && data
+                ? `Refresh failed · Last ${formatRelativeUpdatedAt(lastUpdatedAt, relativeTimeNow).toLowerCase()}`
+                : formatRelativeUpdatedAt(lastUpdatedAt, relativeTimeNow)}
             </Text>
           ) : null}
         </View>
@@ -914,7 +916,7 @@ export default function IrrigationAdvisorScreen() {
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.emptyText, { marginTop: 12 }]}>Loading advisor data…</Text>
         </View>
-      ) : error ? (
+      ) : error && !data ? (
         <View style={styles.center}>
           <Feather name="alert-circle" size={32} color="#ef4444" />
           <Text style={[styles.emptyText, { marginTop: 8, color: "#b91c1c" }]}>{error}</Text>

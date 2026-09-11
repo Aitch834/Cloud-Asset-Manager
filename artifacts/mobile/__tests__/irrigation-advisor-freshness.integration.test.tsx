@@ -159,4 +159,41 @@ describe("Irrigation Advisor freshness label", () => {
       expect(advisorScroll()?.props.refreshControl.props.refreshing).toBe(false);
     });
   });
+
+  it("keeps the last successful update honest when a later refresh fails", async () => {
+    apiFetchMock
+      .mockResolvedValueOnce(response(advisorPayload))
+      .mockResolvedValueOnce(response(advisorPayload))
+      .mockRejectedValueOnce(new Error("Weather service unavailable"));
+
+    const screen = render(<IrrigationAdvisorScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Updated just now")).toBeTruthy();
+    });
+
+    act(() => {
+      jest.setSystemTime(new Date("2026-09-07T10:04:00.000Z"));
+      jest.advanceTimersByTime(60_000);
+    });
+    expect(screen.getByText("Updated 4 min ago")).toBeTruthy();
+
+    const advisorScroll = () =>
+      screen
+        .UNSAFE_getAllByType("ScrollView")
+        .find((node) => node.props.refreshControl);
+    const refreshControl = advisorScroll()?.props.refreshControl;
+    expect(refreshControl).toBeTruthy();
+
+    await act(async () => {
+      refreshControl.props.onRefresh();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("Refresh failed · Last updated 4 min ago")).toBeTruthy();
+    expect(screen.getByText("North Field")).toBeTruthy();
+    expect(advisorScroll()?.props.refreshControl.props.refreshing).toBe(false);
+    expect(screen.queryByText("Updated just now")).toBeNull();
+  });
 });
