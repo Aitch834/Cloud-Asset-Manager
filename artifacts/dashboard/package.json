@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node -e \"const fs=require('fs');if(!fs.existsSync('dist/public/index.html')){const{execSync}=require('child_process');execSync('pnpm run build',{stdio:'inherit'})}\" && node serve.mjs",
-    "build": "NODE_OPTIONS=--max-old-space-size=4096 vite build --config vite.config.ts",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 vite build --config vite.config.ts && node scripts/check-production-assets.mjs",
+    "check:production-assets": "node scripts/check-production-assets.mjs",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "node scripts/check-no-live-page-print.mjs && node scripts/check-restricted-inputs-columns.mjs && node scripts/check-field-status-columns.mjs && node scripts/check-barrel-health-print-retirement.mjs && NODE_OPTIONS=--max-old-space-size=4096 tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts --exclude '**/e2e/**'",
