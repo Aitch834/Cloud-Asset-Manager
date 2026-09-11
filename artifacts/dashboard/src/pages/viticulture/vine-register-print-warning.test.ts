@@ -13,6 +13,14 @@ const completeFarmMeta = {
 };
 
 describe("Vine Register print missing-header warning", () => {
+  const alignedPdfAndBrowserWarningFields = [
+    "Farm Address",
+    "FSA Vine Register Ref",
+    "FSA Wine Production Ref",
+    "APPA Ref",
+    "WineGB Membership No",
+  ];
+
   it.each([undefined, null, "", "   \t\n"])(
     "reports a blank address (%s) alongside the other missing header fields",
     (address) => {
@@ -24,19 +32,19 @@ describe("Vine Register print missing-header warning", () => {
           appaRef: null,
           winegbMembershipNumber: undefined,
         }),
-      ).toEqual([
-        "Farm Address",
-        "FSA Vine Register Ref",
-        "FSA Wine Production Ref",
-        "APPA Ref",
-        "WineGB Membership No",
-      ]);
+      ).toEqual(alignedPdfAndBrowserWarningFields);
     },
   );
 
   it("does not report a populated address as missing", () => {
     expect(getVineRegisterMissingHeaderFields(completeFarmMeta)).not.toContain(
       "Farm Address",
+    );
+  });
+
+  it("keeps the PDF and browser print warning field list aligned", () => {
+    expect(getVineRegisterMissingHeaderFields({})).toEqual(
+      alignedPdfAndBrowserWarningFields,
     );
   });
 

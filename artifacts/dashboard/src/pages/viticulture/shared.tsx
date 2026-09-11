@@ -1521,18 +1521,14 @@ export async function downloadVineRegisterPdf(
   const addressParts = [addressValue, postcodeValue].filter(Boolean).join(", ");
 
   // Prefer farmMeta refs over the legacy fsaVineRef argument
-  const fsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : fsaVineRef ?? "").trim();
+  const fsaVineRegisterRef = resolveVineRegisterFsaRef(farmMeta, fsaVineRef);
   const fsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
   const appaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
   const winegbMembershipNumber = (farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : "").trim();
 
-  const missingFields: string[] = [
+  const missingFields = [
     !farmName?.trim() ? "Farm name" : "",
-    !addressValue ? "Farm address" : "",
-    !fsaVineRegisterRef ? "FSA Vine Register Ref" : "",
-    !fsaWineProductionRef ? "FSA Wine Production Ref" : "",
-    !appaRef ? "APPA Ref" : "",
-    !winegbMembershipNumber ? "WineGB Membership No" : "",
+    ...getVineRegisterMissingHeaderFields(farmMeta, fsaVineRef),
   ].filter(Boolean);
 
   const activeCount = records.filter(r => !r.isRemovedFromRegister).length;
