@@ -38,6 +38,7 @@
     "test:lead-sector-notes-cleanup": "tsx scripts/test-lead-sector-notes-cleanup.ts",
     "test:lead-delete-auth": "node scripts/check-lead-delete-auth.mjs",
     "test:phenology-planting-link": "node scripts/check-phenology-planting-link.mjs",
+    "test:phenology-planting-repair": "tsx scripts/test-phenology-planting-repair.ts",
     "test:vineyard-harvest-date": "tsx scripts/test-vineyard-harvest-date.ts",
     "test:scouting-photo-access": "tsx scripts/test-scouting-photo-access.ts",
     "test:lis-closure-email-failure": "tsx scripts/test-lis-closure-email-failure.ts",
