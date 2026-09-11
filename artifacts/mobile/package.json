@@ -103,7 +103,7 @@
           "<rootDir>/__tests__/**/*.test.ts"
         ],
         "transform": {
-          "^.+\\.tsx?$": [
+          "^.+\\.[jt]sx?$": [
             "babel-jest",
             {
               "presets": [
@@ -128,7 +128,7 @@
           "<rootDir>/__tests__/**/*.test.tsx"
         ],
         "transform": {
-          "^.+\\.tsx?$": [
+          "^.+\\.[jt]sx?$": [
             "babel-jest",
             {
               "presets": [

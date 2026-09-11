@@ -9,10 +9,6 @@ jest.mock("../lib/apiFetch", () => ({
   apiFetch: jest.fn(),
 }));
 
-jest.mock("expo-crypto", () => ({
-  randomUUID: jest.fn(() => "test-uuid"),
-}));
-
 jest.mock("react-native", () => {
   const React = require("react");
   const host = (name: string) =>
@@ -337,7 +333,11 @@ describe("VineScoutingHistoryScreen — date-filtered PDF export", () => {
     fireEvent.press(screen.getByTestId("vine-scouting-export"));
 
     await waitFor(() => {
-      expect(savePdf).toHaveBeenCalledWith(expect.any(String), "Vine Scouting History");
+      expect(savePdf).toHaveBeenCalledWith(
+        expect.any(String),
+        "Vine Scouting History",
+        "vine-scouting-history.pdf",
+      );
     });
     const html = lastPdfHtml();
     expect(html).toContain("1 record");
