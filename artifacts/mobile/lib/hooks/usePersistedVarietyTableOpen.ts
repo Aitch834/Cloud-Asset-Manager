@@ -35,10 +35,14 @@ export function usePersistedVarietyTableOpen(
     userToggled.current = false;
 
     let cancelled = false;
-    getItem<boolean>(storageKey).then((stored) => {
-      if (cancelled || userToggled.current) return;
-      if (typeof stored === "boolean") setIsOpenRaw(stored);
-    });
+    getItem<boolean>(storageKey)
+      .then((stored) => {
+        if (cancelled || userToggled.current) return;
+        if (typeof stored === "boolean") setIsOpenRaw(stored);
+      })
+      .catch(() => {
+        /* Keep the safe default when preference storage cannot be read. */
+      });
 
     return () => {
       cancelled = true;

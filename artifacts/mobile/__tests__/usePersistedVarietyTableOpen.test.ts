@@ -98,6 +98,16 @@ describe("usePersistedVarietyTableOpen", () => {
     },
   );
 
+  it("stays open when reading the saved preference fails", async () => {
+    mockGetItem.mockRejectedValueOnce(new Error("storage unavailable"));
+
+    renderHook("farm-a");
+    runCurrentEffect();
+    await drainAsync();
+
+    expect(renderHook("farm-a")[0]).toBe(true);
+  });
+
   it("ignores a stale storage read after switching farms", async () => {
     renderHook("farm-a");
     const cleanupFarmA = runCurrentEffect();
