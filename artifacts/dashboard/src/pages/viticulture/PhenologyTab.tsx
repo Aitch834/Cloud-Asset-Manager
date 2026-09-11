@@ -61,6 +61,29 @@ type WinegbSurveyKey = "bud_burst" | "frost_damage" | "flowering" | "veraison" |
 
 export type StoredOffer = { surveyName: string; label: string; surveyKey: WinegbSurveyKey; year: number };
 
+const WINEGB_SURVEY_KEYS: ReadonlySet<string> = new Set([
+  "bud_burst",
+  "frost_damage",
+  "flowering",
+  "veraison",
+  "harvest",
+]);
+
+function isStoredOffer(value: unknown): value is StoredOffer {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const offer = value as Record<string, unknown>;
+  return (
+    typeof offer.surveyName === "string"
+    && offer.surveyName.trim().length > 0
+    && typeof offer.label === "string"
+    && offer.label.trim().length > 0
+    && typeof offer.surveyKey === "string"
+    && WINEGB_SURVEY_KEYS.has(offer.surveyKey)
+    && typeof offer.year === "number"
+    && Number.isInteger(offer.year)
+  );
+}
+
 export function readStoredOffers(farmId: number): StoredOffer[] {
   const prefix = `winegb-offer:${farmId}:`;
   const currentYear = new Date().getFullYear();
@@ -72,9 +95,9 @@ export function readStoredOffers(farmId: number): StoredOffer[] {
         const raw = localStorage.getItem(k);
         if (raw) {
           try {
-            const offer = JSON.parse(raw) as StoredOffer;
-            if (currentYear > offer.year) {
-              // Stale — from a previous season (more than 12 months in the past); discard silently
+            const offer: unknown = JSON.parse(raw);
+            if (!isStoredOffer(offer) || currentYear > offer.year) {
+              // Invalid or stale — discard silently so it cannot render a broken banner
               localStorage.removeItem(k);
             } else {
               results.push(offer);

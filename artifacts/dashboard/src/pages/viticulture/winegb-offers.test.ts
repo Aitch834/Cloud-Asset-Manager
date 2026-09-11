@@ -52,6 +52,30 @@ describe("readStoredOffers", () => {
     expect(storage.getItem(validKey)).toBe(JSON.stringify(currentOffer));
   });
 
+  it.each([
+    ["null", null],
+    ["an array", []],
+    ["a missing survey name", { label: "flowering", surveyKey: "flowering", year: new Date().getFullYear() }],
+    ["a blank label", { surveyName: "Flowering Survey", label: "  ", surveyKey: "flowering", year: new Date().getFullYear() }],
+    ["an unknown survey key", { surveyName: "Flowering Survey", label: "flowering", surveyKey: "unknown", year: new Date().getFullYear() }],
+    ["a non-numeric year", { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering", year: "2026" }],
+    ["a fractional year", { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering", year: 2026.5 }],
+  ])("silently removes parseable malformed reminder shape: %s", (_description, malformedOffer) => {
+    const year = new Date().getFullYear();
+    const malformedKey = `winegb-offer:${farmId}:flowering:${year}`;
+    const validKey = `winegb-offer:${farmId}:bud_burst:${year}`;
+    const currentOffer = offerFor(year);
+    const storage = createMemoryStorage();
+    storage.setItem(malformedKey, JSON.stringify(malformedOffer));
+    storage.setItem(validKey, JSON.stringify(currentOffer));
+    vi.stubGlobal("localStorage", storage);
+
+    expect(() => readStoredOffers(farmId)).not.toThrow();
+    expect(readStoredOffers(farmId)).toEqual([currentOffer]);
+    expect(storage.getItem(malformedKey)).toBeNull();
+    expect(storage.getItem(validKey)).toBe(JSON.stringify(currentOffer));
+  });
+
   it("silently removes an offer from the previous calendar year", () => {
     const year = new Date().getFullYear();
     const staleOffer = offerFor(year - 1);
