@@ -26,7 +26,10 @@ const farmFixture = {
   winegbMembershipNumber: "WGB-98765",
 };
 
-function captureExciseReturnHtml(farmMeta: Record<string, unknown>) {
+function captureExciseReturnHtml(
+  farmMeta: Record<string, unknown>,
+  ratesLastUpdated: string | null = "2026-06-01",
+) {
   let html = "";
   const printWindow = {
     document: {
@@ -48,7 +51,7 @@ function captureExciseReturnHtml(farmMeta: Record<string, unknown>) {
     "Test Vineyard",
     "WINERY-123",
     farmMeta,
-    "2026-06-01",
+    ratesLastUpdated,
   );
 
   return html;
@@ -83,6 +86,26 @@ describe("Excise Return WineGB print header", () => {
       );
     },
   );
+});
+
+describe("Excise Return duty rate review date", () => {
+  it("prints the formatted configured review date beside the effective duty rate", () => {
+    const html = captureExciseReturnHtml(farmFixture, "2026-06-01");
+
+    expect(html).toContain(
+      '<tr><td>Effective Duty Rate</td><td>&pound;342.00 per 100 L</td></tr>\n' +
+        '    <tr><td>Duty Rates Reviewed</td><td>1 Jun 2026</td></tr>',
+    );
+  });
+
+  it("prints the documented HMRC August 2023 fallback when no review date is configured", () => {
+    const html = captureExciseReturnHtml(farmFixture, null);
+
+    expect(html).toContain(
+      '<tr><td>Effective Duty Rate</td><td>&pound;342.00 per 100 L</td></tr>\n' +
+        '    <tr><td>Duty Rates Reviewed</td><td>HMRC August 2023</td></tr>',
+    );
+  });
 });
 
 describe("Excise Return blocked print window", () => {
