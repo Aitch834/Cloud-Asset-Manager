@@ -33,6 +33,14 @@ jest.mock("react", () => ({
 
 import { usePersistedVintage } from "@/lib/hooks/usePersistedVintage";
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 function renderHook(farmId: string) {
   mockHarness.stateSlotCounter.value = 0;
   mockHarness.refSlotCounter.value = 0;
@@ -74,5 +82,34 @@ describe("usePersistedVintage", () => {
     setVintage(2025);
 
     expect(mockSetItem).toHaveBeenCalledWith("bde_vine_vintage_farm-a", 2025);
+  });
+
+  it("ignores an old farm read that resolves after the current farm", async () => {
+    const farmARead = deferred<number>();
+    const farmBRead = deferred<number>();
+    mockGetItem.mockImplementation((key: string) => {
+      if (key === "bde_vine_vintage_farm-a") return farmARead.promise;
+      if (key === "bde_vine_vintage_farm-b") return farmBRead.promise;
+      throw new Error(`Unexpected storage key: ${key}`);
+    });
+
+    renderHook("farm-a");
+    const cancelFarmARead = mockHarness.capturedEffect.value?.();
+
+    renderHook("farm-b");
+    cancelFarmARead?.();
+    mockHarness.capturedEffect.value?.();
+
+    farmBRead.resolve(2025);
+    await drainAsync();
+    expect(renderHook("farm-b")).toEqual([2025, expect.any(Function), "farm-b"]);
+
+    farmARead.resolve(2023);
+    await drainAsync();
+    expect(renderHook("farm-b")).toEqual([2025, expect.any(Function), "farm-b"]);
+    expect(mockGetItem.mock.calls).toEqual([
+      ["bde_vine_vintage_farm-a"],
+      ["bde_vine_vintage_farm-b"],
+    ]);
   });
 });
