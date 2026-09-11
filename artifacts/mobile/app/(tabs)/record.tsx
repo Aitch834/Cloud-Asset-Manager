@@ -13,6 +13,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useBarrelAlertThresholds } from "@/lib/hooks/useBarrelAlertThresholds";
+import { MASTITIS_HISTORY_SHORTCUT } from "@/lib/homeModuleChecks";
 import { shouldShowModuleLoading } from "@/lib/utils/moduleLoadingGuard";
 import {
   isBarrelType as _isBarrelType,
@@ -623,13 +624,13 @@ export const recordOptions: RecordOption[] = [
   },
   {
     id: "mastitis-history",
-    title: "Mastitis History",
+    title: MASTITIS_HISTORY_SHORTCUT.title,
     description: "View 12-month case trend and browse past mastitis records by month",
     icon: "bar-chart-2",
     color: "#2563eb",
     bgColor: "#dbeafe",
-    route: "/mastitis-history",
-    moduleKeys: ["dairy-management"],
+    route: MASTITIS_HISTORY_SHORTCUT.route,
+    moduleKeys: [MASTITIS_HISTORY_SHORTCUT.moduleKey],
     requiresSectors: ["dairy"],
   },
   {

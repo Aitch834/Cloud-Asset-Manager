@@ -83,6 +83,10 @@ import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
 import { router } from "expo-router";
 import RecordScreen, { recordOptions } from "../app/(tabs)/record";
+import {
+  getDairyHomeShortcut,
+  MASTITIS_HISTORY_SHORTCUT,
+} from "../lib/homeModuleChecks";
 
 const mockPush = router.push as jest.Mock;
 
@@ -114,6 +118,22 @@ describe("Record menu history shortcuts", () => {
         exists: true,
       });
     }
+  });
+
+  it("keeps Home and Record aligned to the shared Mastitis History shortcut", () => {
+    const recordShortcut = recordOptions.find(
+      (option) => option.id === "mastitis-history",
+    );
+
+    expect(
+      getDairyHomeShortcut([MASTITIS_HISTORY_SHORTCUT.moduleKey]),
+    ).toBe(MASTITIS_HISTORY_SHORTCUT);
+    expect(recordShortcut).toMatchObject({
+      title: MASTITIS_HISTORY_SHORTCUT.title,
+      route: MASTITIS_HISTORY_SHORTCUT.route,
+      moduleKeys: [MASTITIS_HISTORY_SHORTCUT.moduleKey],
+      requiresSectors: ["dairy"],
+    });
   });
 
   it("shows Operations History for a viticulture farm and opens its route", () => {

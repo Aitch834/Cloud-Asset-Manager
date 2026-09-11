@@ -6,10 +6,13 @@ export interface HomeModuleChecks {
   isOrganicActive: boolean;
 }
 
-export interface HomeModuleShortcut {
-  title: string;
-  route: "/mastitis-history";
-}
+export const MASTITIS_HISTORY_SHORTCUT = {
+  title: "Mastitis History",
+  route: "/mastitis-history",
+  moduleKey: "dairy-management",
+} as const;
+
+export type HomeModuleShortcut = typeof MASTITIS_HISTORY_SHORTCUT;
 
 export interface HomeUnlinkedCounts {
   scouting: number;
@@ -39,12 +42,9 @@ export function getHomeModuleChecks(
 export function getDairyHomeShortcut(
   activeModuleKeys: string[],
 ): HomeModuleShortcut | null {
-  if (!activeModuleKeys.includes("dairy-management")) return null;
+  if (!activeModuleKeys.includes(MASTITIS_HISTORY_SHORTCUT.moduleKey)) return null;
 
-  return {
-    title: "Mastitis History",
-    route: "/mastitis-history",
-  };
+  return MASTITIS_HISTORY_SHORTCUT;
 }
 
 /**

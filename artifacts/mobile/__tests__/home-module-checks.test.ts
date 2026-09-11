@@ -1,6 +1,7 @@
 import {
   getDairyHomeShortcut,
   getHomeModuleChecks,
+  MASTITIS_HISTORY_SHORTCUT,
   shouldShowViticultureComplianceGaps,
 } from "../lib/homeModuleChecks";
 
@@ -59,10 +60,9 @@ describe("home module checks", () => {
     const nonDairyDashboard = { activeModuleKeys: ["livestock-management"] };
 
     const dairyModules = getHomeModuleChecks(dairyDashboard, true);
-    expect(getDairyHomeShortcut(dairyModules.activeModuleKeys)).toEqual({
-      title: "Mastitis History",
-      route: "/mastitis-history",
-    });
+    expect(getDairyHomeShortcut(dairyModules.activeModuleKeys)).toBe(
+      MASTITIS_HISTORY_SHORTCUT,
+    );
 
     const switchingModules = getHomeModuleChecks(dairyDashboard, false);
     expect(getDairyHomeShortcut(switchingModules.activeModuleKeys)).toBeNull();
@@ -74,9 +74,8 @@ describe("home module checks", () => {
     expect(getDairyHomeShortcut(switchingBackModules.activeModuleKeys)).toBeNull();
 
     const refreshedDairyModules = getHomeModuleChecks(dairyDashboard, true);
-    expect(getDairyHomeShortcut(refreshedDairyModules.activeModuleKeys)).toEqual({
-      title: "Mastitis History",
-      route: "/mastitis-history",
-    });
+    expect(getDairyHomeShortcut(refreshedDairyModules.activeModuleKeys)).toBe(
+      MASTITIS_HISTORY_SHORTCUT,
+    );
   });
 });
