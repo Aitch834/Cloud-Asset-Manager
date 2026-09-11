@@ -310,10 +310,14 @@ test("preserves approval status when switching crop year and includes both in th
   const farm = await getOrganicFarm();
   await prepareInputRegisterFilterPersistence(page, farm);
 
-  const selects = page.locator("select");
-  await expect(selects).toHaveCount(2);
-  const yearSelect = selects.nth(0);
-  const statusSelect = selects.nth(1);
+  const yearSelect = page.getByRole("combobox", {
+    name: "Crop year",
+    exact: true,
+  });
+  const statusSelect = page.getByRole("combobox", {
+    name: "Approval status",
+    exact: true,
+  });
 
   await expect(yearSelect).toHaveValue("2025");
   await expect(statusSelect).toHaveValue("all");

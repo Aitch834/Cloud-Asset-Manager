@@ -1692,6 +1692,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-2 flex-wrap">
           <select
+            aria-label="Crop year"
             className="h-9 rounded-xl border-2 border-border bg-transparent px-3 text-sm"
             value={yearFilter}
             onChange={e => setYearFilter(e.target.value)}
@@ -1700,6 +1701,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
             {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <select
+            aria-label="Approval status"
             className="h-9 rounded-xl border-2 border-border bg-transparent px-3 text-sm"
             value={approvalStatusFilter}
             onChange={e => setApprovalStatusFilter(e.target.value)}
